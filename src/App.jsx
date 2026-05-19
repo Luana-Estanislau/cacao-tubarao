@@ -7,6 +7,29 @@ import { useNavigate } from "react-router-dom";
 const AIRTABLE_TOKEN = import.meta.env.VITE_AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
 const AIRTABLE_TABLE = "Table 1";
+const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY;
+
+// ─── Google Places Search ─────────────────────────────────────
+async function searchPlaces(query) {
+  const res = await fetch(
+    `https://places.googleapis.com/v1/places:searchText`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_KEY,
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location,places.id,places.types",
+      },
+      body: JSON.stringify({
+        textQuery: query + " Brasil",
+        languageCode: "pt-BR",
+        maxResultCount: 5,
+      }),
+    }
+  );
+  const data = await res.json();
+  return data.places || [];
+}
 
 const TIPOS_ESTABELECIMENTO = [
   "Supermercado","Feira livre","Peixaria","Restaurante",
@@ -340,6 +363,9 @@ export default function CacaoApp() {
   const [cepError, setCepError]     = useState(null);
   const [geoStatus, setGeoStatus]   = useState("idle");
   const [showMap, setShowMap]       = useState(false);
+  const [placesQuery, setPlacesQuery] = useState("");
+  const [placesResults, setPlacesResults] = useState([]);
+  const [placesLoading, setPlacesLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted]   = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -407,7 +433,54 @@ export default function CacaoApp() {
     );
   }
 
-  // ── Map pin ──
+  // ── Places search ──
+  const placesTimer = useRef(null);
+  function handlePlacesQuery(val) {
+    setPlacesQuery(val);
+    upd("nomeEstabelecimento", val);
+    clearTimeout(placesTimer.current);
+    if (val.length < 3) { setPlacesResults([]); return; }
+    placesTimer.current = setTimeout(async () => {
+      setPlacesLoading(true);
+      try {
+        const results = await searchPlaces(val);
+        setPlacesResults(results);
+      } catch { setPlacesResults([]); }
+      finally { setPlacesLoading(false); }
+    }, 500);
+  }
+
+  function handleSelectPlace(place) {
+    const addr = place.formattedAddress || "";
+    // Google Places (New) address format for Brazil:
+    // "Street, Number - Neighborhood, City - State, CEP, Brasil"
+    // Extract using regex for Brazilian state codes
+    const stateMatch = addr.match(/\b([A-Z]{2}),\s*\d{5}/);
+    const estado = stateMatch ? stateMatch[1] : "";
+
+    // City is usually before " - STATE"
+    const cityMatch = addr.match(/,\s*([^,]+)\s*-\s*[A-Z]{2},/);
+    const cidade = cityMatch ? cityMatch[1].trim() : "";
+
+    // Street is everything before the city part
+    const streetParts = addr.split(",");
+    const endereco = streetParts.slice(0, 2).join(",").trim();
+
+    setForm(f => ({
+      ...f,
+      nomeEstabelecimento: place.displayName?.text || f.nomeEstabelecimento,
+      endereco: endereco,
+      cidade: cidade,
+      estado: normalizeEstado(estado) || estado,
+      latitude: place.location?.latitude || f.latitude,
+      longitude: place.location?.longitude || f.longitude,
+      googlePlaceId: place.id || f.googlePlaceId,
+      fonteLocalizacao: "Google Places",
+    }));
+    setPlacesQuery(place.displayName?.text || "");
+    setPlacesResults([]);
+    setShowMap(true);
+  }
   const handleMapLocation = useCallback(async ({ lat, lng, addr }) => {
     setForm(f => ({
       ...f,
@@ -623,11 +696,72 @@ export default function CacaoApp() {
         </div>
       )}
 
-      {/* Nome */}
+      {/* Google Places search */}
       <div style={S.group}>
         <label style={S.label}>Nome do estabelecimento *</label>
-        <input style={S.input} placeholder="Ex: Mercadão do João, Carrefour Ipanema..."
-          value={form.nomeEstabelecimento} onChange={e => upd("nomeEstabelecimento", e.target.value)} />
+        <div style={{
+          fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 6, lineHeight: 1.5
+        }}>
+          🔍 Digite o nome do local para buscar automaticamente — supermercado, feira, peixaria...
+        </div>
+        <div style={{ position: "relative" }}>
+          <input
+            style={{ ...S.input, paddingLeft: 36 }}
+            placeholder="Ex: Zona Sul Ipanema, Feira do Largo..."
+            value={placesQuery || form.nomeEstabelecimento}
+            onChange={e => handlePlacesQuery(e.target.value)}
+          />
+          <div style={{
+            position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+            fontSize: 16, pointerEvents: "none"
+          }}>🔍</div>
+          {placesLoading && (
+            <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#00c8a0", fontSize: 12 }}>...</div>
+          )}
+        </div>
+        {/* Resultados */}
+        {placesResults.length > 0 && (
+          <div style={{
+            background: "#002d3a", border: "1px solid rgba(0,200,160,0.25)",
+            borderRadius: 8, marginTop: 4, overflow: "hidden", zIndex: 50, position: "relative",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+          }}>
+            <div style={{ padding: "6px 12px", fontSize: 10, color: "rgba(255,255,255,0.3)", fontFamily: "'Space Mono',monospace", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              RESULTADOS DO GOOGLE PLACES
+            </div>
+            {placesResults.map((place, i) => (
+              <div
+                key={i}
+                onClick={() => handleSelectPlace(place)}
+                style={{
+                  padding: "10px 12px", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start",
+                  borderBottom: i < placesResults.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                  transition: "background 0.15s",
+                }}
+                onMouseOver={e => e.currentTarget.style.background = "rgba(0,200,160,0.1)"}
+                onMouseOut={e => e.currentTarget.style.background = "transparent"}
+              >
+                <div style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>📍</div>
+                <div>
+                  <div style={{ color: "#e8f4f0", fontSize: 13, fontWeight: 600 }}>
+                    {place.displayName?.text}
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
+                    {place.formattedAddress}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {form.fonteLocalizacao === "Google Places" && (
+          <div style={{ color: "#00c8a0", fontSize: 12, marginTop: 4 }}>✓ Local encontrado via Google Places</div>
+        )}
+        {!form.nomeEstabelecimento && !placesQuery && (
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 4 }}>
+            Não encontrou? Use o GPS, mapa ou CEP acima, e preencha o nome manualmente.
+          </div>
+        )}
       </div>
 
       {/* Tipo */}
