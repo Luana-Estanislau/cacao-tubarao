@@ -8,6 +8,46 @@ const AIRTABLE_TOKEN = import.meta.env.VITE_AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
 const AIRTABLE_TABLE = "Table 1";
 const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY;
+const CLOUDINARY_CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+// ─── Image compression ───────────────────────────────────────
+async function compressImage(base64, maxWidth = 1200, quality = 0.8) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let w = img.width;
+      let h = img.height;
+      if (w > maxWidth) {
+        h = Math.round((h * maxWidth) / w);
+        w = maxWidth;
+      }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      const compressed = canvas.toDataURL("image/jpeg", quality);
+      resolve(compressed.split(",")[1]);
+    };
+    img.src = `data:image/jpeg;base64,${base64}`;
+  });
+}
+
+// ─── Cloudinary Upload ────────────────────────────────────────
+async function uploadToCloudinary(base64Image) {
+  const formData = new FormData();
+  formData.append("file", `data:image/jpeg;base64,${base64Image}`);
+  formData.append("upload_preset", CLOUDINARY_PRESET);
+  formData.append("folder", "cacao-tubarao");
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+    { method: "POST", body: formData }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.secure_url;
+}
 
 // ─── Google Places Search ─────────────────────────────────────
 async function searchPlaces(query) {
@@ -496,6 +536,17 @@ export default function CacaoApp() {
   async function handleSubmit() {
     setSubmitting(true); setSubmitError(null);
     try {
+      // Compress and upload photo to Cloudinary
+      let fotoUrl = null;
+      if (fotoBase64) {
+        try {
+          const compressed = await compressImage(fotoBase64);
+          fotoUrl = await uploadToCloudinary(compressed);
+        } catch (e) {
+          console.warn("Erro ao subir foto:", e);
+        }
+      }
+
       const fields = {
         "Estabelecimento":    form.nomeEstabelecimento,
         "Tipo":               form.tipoEstabelecimento,
@@ -505,7 +556,9 @@ export default function CacaoApp() {
         "Estado":             form.estado,
         "Latitude":           form.latitude  ? parseFloat(form.latitude)  : undefined,
         "Longitude":          form.longitude ? parseFloat(form.longitude) : undefined,
+        "Google Place ID":    form.googlePlaceId,
         "Fonte Localizacao":  form.fonteLocalizacao,
+        "Google Place ID":    form.googlePlaceId || undefined,
         "Forma de Venda":     form.formaVenda,
         "Preco por kg":       form.precoKg ? parseFloat(form.precoKg) : undefined,
         "Especie Declarada":  form.especieDeclarada,
@@ -515,8 +568,8 @@ export default function CacaoApp() {
         "Nome Reportante":    form.nome,
         "Email Reportante":   form.email,
         "Data e Hora":        new Date().toISOString(),
+        ...(fotoUrl && { "Foto": [{ url: fotoUrl }] }),
       };
-      // Remove undefined
       Object.keys(fields).forEach(k => fields[k] === undefined && delete fields[k]);
       await saveToAirtable(fields);
       setSubmitted(true);
@@ -954,7 +1007,7 @@ export default function CacaoApp() {
             cursor: form.concordo ? "pointer" : "not-allowed",
           }}
         >
-          {submitting ? "Salvando no Airtable..." : "💾 Salvar registro"}
+          {submitting ? (fotoBase64 ? "Enviando foto e salvando..." : "Salvando...") : "💾 Salvar registro"}
         </button>
 
         <a href="https://seashepherd.org.br/cacao-e-tubarao/" target="_blank" rel="noopener noreferrer"
