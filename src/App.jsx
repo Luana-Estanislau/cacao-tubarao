@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 
 // ============================================================
 // 🔑 CONFIGURAÇÃO — credenciais via variáveis de ambiente
@@ -316,6 +317,7 @@ const S = {
 
 // ─── Main App ─────────────────────────────────────────────────
 export default function CacaoApp() {
+  const navigate = useNavigate();
   const [step, setStep]           = useState("foto");
   const [foto, setFoto]           = useState(null);
   const [fotoBase64, setFotoBase64] = useState(null);
@@ -879,6 +881,19 @@ export default function CacaoApp() {
             Mapeamento colaborativo · Brasil
           </div>
         </div>
+        <button
+          onClick={() => navigate("/mapa")}
+          style={{
+            marginLeft: "auto",
+            padding: "7px 12px", borderRadius: 8,
+            background: "rgba(0,200,160,0.12)",
+            border: "1px solid rgba(0,200,160,0.3)",
+            color: "#00c8a0", fontWeight: 700, fontSize: 11,
+            cursor: "pointer", fontFamily: "'Space Mono',monospace",
+          }}
+        >
+          🗺️ Mapa
+        </button>
       </div>
 
       {/* Progress */}
