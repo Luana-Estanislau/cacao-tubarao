@@ -267,8 +267,10 @@ export default function MapaPublico() {
     }
   }
 
-  // Records without coordinates (list view)
-  const semCoordenadas = registros.filter(r => !r.fields.Latitude || !r.fields.Longitude);
+  // Records without coordinates (list view) — only show if they have a name
+  const semCoordenadas = registros.filter(r => 
+    (!r.fields.Latitude || !r.fields.Longitude) && r.fields.Estabelecimento
+  );
 
   return (
     <div style={{

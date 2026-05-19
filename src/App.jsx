@@ -627,68 +627,115 @@ export default function CacaoApp() {
   );
 
   // ── LOCAL ──
+  const locationLocked = !!(form.cidade && form.estado && form.fonteLocalizacao);
+
   const StepLocal = (
     <div>
       <h2 style={{ color:"#fff", fontSize:20, fontWeight:700, margin:"0 0 6px", fontFamily:"'Space Mono',monospace" }}>
         Onde foi encontrado?
       </h2>
-      <p style={{ color:"rgba(255,255,255,0.45)", fontSize:13, margin:"0 0 18px", lineHeight:1.6 }}>
-        Escolha como localizar o estabelecimento.
+      <p style={{ color:"rgba(255,255,255,0.45)", fontSize:13, margin:"0 0 6px", lineHeight:1.6 }}>
+        Use um dos métodos abaixo para localizar o estabelecimento.
       </p>
 
-      {/* 3 métodos — mutuamente exclusivos */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:18 }}>
+      {/* Instrução clara */}
+      <div style={{ background:"rgba(0,200,160,0.06)", border:"1px solid rgba(0,200,160,0.15)",
+        borderRadius:8, padding:"10px 12px", marginBottom:16, fontSize:12, color:"rgba(255,255,255,0.5)", lineHeight:1.7 }}>
+        🔍 <strong style={{ color:"rgba(255,255,255,0.7)" }}>Google Places</strong> — busca pelo nome (supermercados, peixarias...)<br/>
+        📍 <strong style={{ color:"rgba(255,255,255,0.7)" }}>GPS</strong> — usa sua localização atual (ideal para feiras)<br/>
+        🗺️ <strong style={{ color:"rgba(255,255,255,0.7)" }}>Mapa</strong> — marca no mapa se não está no local<br/>
+        📮 <strong style={{ color:"rgba(255,255,255,0.7)" }}>CEP</strong> — se souber o CEP do estabelecimento
+      </div>
+
+      {/* 4 métodos */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:8, marginBottom:18 }}>
         {[
+          { icon:"🔍", label:"Places", active: form.fonteLocalizacao==="Google Places",
+            action: () => { document.getElementById("places-input")?.focus(); } },
           { icon:"📍", label:"GPS", active: geoStatus==="ok" || geoStatus==="loading",
             action: () => { setShowMap(false); handleGPS(); } },
-          { icon:"🗺️", label:"Mapa", active: showMap && geoStatus!=="ok",
-            action: () => { setGeoStatus("idle"); setShowMap(v => !v); } },
+          { icon:"🗺️", label:"Mapa", active: showMap,
+            action: () => { setShowMap(v => !v); } },
           { icon:"📮", label:"CEP", active: form.fonteLocalizacao==="CEP",
-            action: () => { setShowMap(false); setGeoStatus("idle");
+            action: () => { setShowMap(false);
               document.getElementById("campo-cep")?.focus(); } },
         ].map(({ icon, label, action, active }) => (
           <button key={label} onClick={action} style={{
-            padding:"10px 6px", borderRadius:8, cursor:"pointer",
+            padding:"10px 4px", borderRadius:8, cursor:"pointer",
             background: active ? "rgba(0,200,160,0.15)" : "rgba(255,255,255,0.05)",
             border: active ? "1px solid #00c8a0" : "1px solid rgba(255,255,255,0.08)",
             color: active ? "#00c8a0" : "rgba(255,255,255,0.6)",
-            fontFamily:"'Space Mono',monospace", fontSize:11, fontWeight:700, textAlign:"center",
+            fontFamily:"'Space Mono',monospace", fontSize:10, fontWeight:700, textAlign:"center",
           }}>
-            <div style={{ fontSize:20, marginBottom:4 }}>{icon}</div>
+            <div style={{ fontSize:18, marginBottom:3 }}>{icon}</div>
             {geoStatus==="loading" && label==="GPS" ? "..." : label}
           </button>
         ))}
       </div>
 
+      {/* Google Places search */}
+      <div style={S.group}>
+        <label style={S.label}>🔍 Buscar estabelecimento</label>
+        <div style={{ position: "relative" }}>
+          <input
+            id="places-input"
+            style={{ ...S.input, paddingLeft: 36 }}
+            placeholder="Digite o nome: Carrefour, Zona Sul, feira..."
+            value={placesQuery}
+            onChange={e => handlePlacesQuery(e.target.value)}
+          />
+          <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)",
+            fontSize:15, pointerEvents:"none" }}>🔍</div>
+          {placesLoading && (
+            <div style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
+              color:"#00c8a0", fontSize:12 }}>...</div>
+          )}
+        </div>
+        {placesResults.length > 0 && (
+          <div style={{ background:"#002d3a", border:"1px solid rgba(0,200,160,0.25)",
+            borderRadius:8, marginTop:4, overflow:"hidden", boxShadow:"0 4px 20px rgba(0,0,0,0.3)" }}>
+            <div style={{ padding:"6px 12px", fontSize:10, color:"rgba(255,255,255,0.3)",
+              fontFamily:"'Space Mono',monospace", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+              RESULTADOS DO GOOGLE PLACES
+            </div>
+            {placesResults.map((place, i) => (
+              <div key={i} onClick={() => handleSelectPlace(place)}
+                style={{ padding:"10px 12px", cursor:"pointer", display:"flex", gap:10,
+                  borderBottom: i < placesResults.length-1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
+                onMouseOver={e => e.currentTarget.style.background="rgba(0,200,160,0.1)"}
+                onMouseOut={e => e.currentTarget.style.background="transparent"}>
+                <div style={{ fontSize:15, flexShrink:0 }}>📍</div>
+                <div>
+                  <div style={{ color:"#e8f4f0", fontSize:13, fontWeight:600 }}>{place.displayName?.text}</div>
+                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:11, marginTop:2 }}>{place.formattedAddress}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* CEP */}
       <div style={S.group}>
-        <label style={S.label}>CEP</label>
+        <label style={S.label}>📮 CEP</label>
         <div style={{ position:"relative" }}>
-          <input
-            id="campo-cep"
-            style={{ ...S.input, paddingRight:36 }}
-            placeholder="00000-000"
-            value={form.cep}
-            onChange={e => handleCEP(e.target.value)}
-            maxLength={9}
-          />
+          <input id="campo-cep" style={{ ...S.input, paddingRight:36 }}
+            placeholder="00000-000" value={form.cep}
+            onChange={e => handleCEP(e.target.value)} maxLength={9} />
           {cepLoading && (
             <div style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
               color:"#00c8a0", fontSize:12 }}>...</div>
           )}
         </div>
         {cepError && <div style={{ color:"#ff6b6b", fontSize:12, marginTop:4 }}>{cepError}</div>}
-        {form.fonteLocalizacao === "CEP" && !cepError && (
-          <div style={{ color:"#00c8a0", fontSize:12, marginTop:4 }}>✓ Endereço preenchido via CEP</div>
-        )}
       </div>
 
       {/* Mapa */}
       {showMap && (
         <div style={{ marginBottom:14 }}>
-          <label style={S.label}>Clique no mapa para marcar o local</label>
+          <label style={S.label}>🗺️ Clique no mapa para marcar o local</label>
           <MapPicker lat={form.latitude} lng={form.longitude} onLocationChange={handleMapLocation} />
-          {form.fonteLocalizacao === "Mapa" && (
+          {(form.fonteLocalizacao === "Mapa" || form.fonteLocalizacao === "GPS") && form.latitude && (
             <div style={{ color:"#00c8a0", fontSize:12, marginTop:6 }}>
               ✓ Pin: {form.latitude?.toFixed(5)}, {form.longitude?.toFixed(5)}
             </div>
@@ -696,70 +743,40 @@ export default function CacaoApp() {
         </div>
       )}
 
-      {/* Google Places search */}
+      {/* Status de localização */}
+      {locationLocked && (
+        <div style={{ background:"rgba(0,200,160,0.08)", border:"1px solid rgba(0,200,160,0.2)",
+          borderRadius:10, padding:"12px 14px", marginBottom:14 }}>
+          <div style={{ color:"#00c8a0", fontSize:11, fontFamily:"'Space Mono',monospace",
+            fontWeight:700, marginBottom:6 }}>
+            ✓ LOCALIZAÇÃO CONFIRMADA via {form.fonteLocalizacao}
+          </div>
+          <div style={{ color:"rgba(255,255,255,0.7)", fontSize:13 }}>
+            {[form.cidade, form.estado].filter(Boolean).join(" · ")}
+          </div>
+          {form.endereco && (
+            <div style={{ color:"rgba(255,255,255,0.45)", fontSize:12, marginTop:2 }}>{form.endereco}</div>
+          )}
+          <button onClick={() => {
+            setForm(f => ({ ...f, cidade:"", estado:"", endereco:"", latitude:null, longitude:null, fonteLocalizacao:"", cep:"" }));
+            setGeoStatus("idle"); setShowMap(false); setPlacesQuery(""); setPlacesResults([]);
+          }} style={{ marginTop:8, background:"transparent", border:"none",
+            color:"rgba(255,100,100,0.7)", fontSize:11, cursor:"pointer", padding:0 }}>
+            ✕ Limpar e escolher outro método
+          </button>
+        </div>
+      )}
+
+      {/* Nome do estabelecimento — sempre editable */}
       <div style={S.group}>
         <label style={S.label}>Nome do estabelecimento *</label>
-        <div style={{
-          fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 6, lineHeight: 1.5
-        }}>
-          🔍 Digite o nome do local para buscar automaticamente — supermercado, feira, peixaria...
-        </div>
-        <div style={{ position: "relative" }}>
-          <input
-            style={{ ...S.input, paddingLeft: 36 }}
-            placeholder="Ex: Zona Sul Ipanema, Feira do Largo..."
-            value={placesQuery || form.nomeEstabelecimento}
-            onChange={e => handlePlacesQuery(e.target.value)}
-          />
-          <div style={{
-            position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
-            fontSize: 16, pointerEvents: "none"
-          }}>🔍</div>
-          {placesLoading && (
-            <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#00c8a0", fontSize: 12 }}>...</div>
-          )}
-        </div>
-        {/* Resultados */}
-        {placesResults.length > 0 && (
-          <div style={{
-            background: "#002d3a", border: "1px solid rgba(0,200,160,0.25)",
-            borderRadius: 8, marginTop: 4, overflow: "hidden", zIndex: 50, position: "relative",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
-          }}>
-            <div style={{ padding: "6px 12px", fontSize: 10, color: "rgba(255,255,255,0.3)", fontFamily: "'Space Mono',monospace", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-              RESULTADOS DO GOOGLE PLACES
-            </div>
-            {placesResults.map((place, i) => (
-              <div
-                key={i}
-                onClick={() => handleSelectPlace(place)}
-                style={{
-                  padding: "10px 12px", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start",
-                  borderBottom: i < placesResults.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
-                  transition: "background 0.15s",
-                }}
-                onMouseOver={e => e.currentTarget.style.background = "rgba(0,200,160,0.1)"}
-                onMouseOut={e => e.currentTarget.style.background = "transparent"}
-              >
-                <div style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>📍</div>
-                <div>
-                  <div style={{ color: "#e8f4f0", fontSize: 13, fontWeight: 600 }}>
-                    {place.displayName?.text}
-                  </div>
-                  <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
-                    {place.formattedAddress}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {form.fonteLocalizacao === "Google Places" && (
-          <div style={{ color: "#00c8a0", fontSize: 12, marginTop: 4 }}>✓ Local encontrado via Google Places</div>
-        )}
-        {!form.nomeEstabelecimento && !placesQuery && (
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 4 }}>
-            Não encontrou? Use o GPS, mapa ou CEP acima, e preencha o nome manualmente.
+        <input style={S.input}
+          placeholder={form.fonteLocalizacao === "Google Places" ? form.nomeEstabelecimento : "Nome do local..."}
+          value={form.nomeEstabelecimento}
+          onChange={e => upd("nomeEstabelecimento", e.target.value)} />
+        {!form.nomeEstabelecimento && (
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4 }}>
+            Preencha se GPS, Mapa ou CEP não trouxer o nome automaticamente.
           </div>
         )}
       </div>
@@ -774,12 +791,15 @@ export default function CacaoApp() {
         </select>
       </div>
 
-      {/* Endereço + Número */}
+      {/* Endereço + Número — solo lectura si vino de fuente confiable */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 100px", gap:10 }}>
         <div style={S.group}>
           <label style={S.label}>Endereço</label>
-          <input style={S.input} placeholder="Rua, avenida..."
-            value={form.endereco} onChange={e => upd("endereco", e.target.value)} />
+          <input style={{ ...S.input, opacity: locationLocked ? 0.6 : 1 }}
+            placeholder="Preenchido automaticamente"
+            value={form.endereco}
+            readOnly={locationLocked}
+            onChange={e => !locationLocked && upd("endereco", e.target.value)} />
         </div>
         <div style={S.group}>
           <label style={S.label}>Número</label>
@@ -788,22 +808,19 @@ export default function CacaoApp() {
         </div>
       </div>
 
-      {/* Cidade + Estado */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap:10 }}>
-        <div style={S.group}>
-          <label style={S.label}>Cidade *</label>
-          <input style={S.input} placeholder="São Paulo"
-            value={form.cidade} onChange={e => upd("cidade", e.target.value)} />
+      {/* Cidade + Estado — siempre bloqueados */}
+      {locationLocked && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap:10 }}>
+          <div style={S.group}>
+            <label style={S.label}>Cidade</label>
+            <input style={{ ...S.input, opacity:0.6 }} value={form.cidade} readOnly />
+          </div>
+          <div style={S.group}>
+            <label style={S.label}>Estado</label>
+            <input style={{ ...S.input, opacity:0.6 }} value={form.estado} readOnly />
+          </div>
         </div>
-        <div style={S.group}>
-          <label style={S.label}>Estado *</label>
-          <select style={{ ...S.input, appearance:"none" }}
-            value={form.estado} onChange={e => upd("estado", e.target.value)}>
-            <option value="">UF</option>
-            {ESTADOS_BR.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
+      )}
     </div>
   );
 
