@@ -668,7 +668,7 @@ export default function CacaoApp() {
         </div>
       )}
 
-      <input ref={fileRef} type="file" accept="image/*" capture="environment"
+      <input ref={fileRef} type="file" accept="image/*"
         style={{ display:"none" }} onChange={e => handleFotoUpload(e.target.files[0])} />
 
       <div style={{ marginTop:12, padding:"10px 12px", background:"rgba(255,255,255,0.03)",
