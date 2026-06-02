@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import * as exifr from "exifr";
 
 // ============================================================
 // 🔑 CONFIGURAÇÃO — credenciais via variáveis de ambiente
@@ -393,7 +394,7 @@ export default function CacaoApp() {
     nomeEstabelecimento:"", tipoEstabelecimento:"",
     cep:"", endereco:"", numero:"", cidade:"", estado:"",
     latitude:null, longitude:null,
-    googlePlaceId:"", fonteLocalizacao:"",
+    googlePlaceId:"", fonteLocalizacao:"", dataFoto:"",
     formaVenda:"", precoKg:"",
     especieDeclarada:"", origem:"", observacoes:"",
     nome:"", email:"", concordo:false,
@@ -417,8 +418,58 @@ export default function CacaoApp() {
     if (!file) return;
     setFoto(URL.createObjectURL(file));
     setAiResult(null); setAiError(null);
+
+    // Read EXIF data
+    exifr.parse(file, { gps: true, tiff: true }).then(exif => {
+      if (!exif) return;
+      const updates = {};
+
+      // GPS coordinates
+      if (exif.latitude && exif.longitude && !form.latitude) {
+        updates.latitude = exif.latitude;
+        updates.longitude = exif.longitude;
+        updates.fonteLocalizacao = "GPS (foto)";
+        setShowMap(true);
+        // Reverse geocode
+        reverseGeocode(exif.latitude, exif.longitude).then(addr => {
+          setForm(f => ({
+            ...f,
+            latitude: exif.latitude,
+            longitude: exif.longitude,
+            endereco: addr.road ? `${addr.road}${addr.house_number ? ", "+addr.house_number : ""}` : f.endereco,
+            cidade: addr.city || addr.town || addr.village || f.cidade,
+            estado: normalizeEstado(addr.state) || f.estado,
+            fonteLocalizacao: "GPS (foto)",
+          }));
+        });
+      }
+
+      // Date taken
+      if (exif.DateTimeOriginal) {
+        updates.dataFoto = exif.DateTimeOriginal.toISOString();
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setForm(f => ({ ...f, ...updates }));
+      }
+    }).catch(() => {
+      // No EXIF data — that's fine
+    });
+
+    // Convert to JPEG base64
     const reader = new FileReader();
-    reader.onload = e => setFotoBase64(e.target.result.split(",")[1]);
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        const jpeg = canvas.toDataURL("image/jpeg", 0.92);
+        setFotoBase64(jpeg.split(",")[1]);
+      };
+      img.src = e.target.result;
+    };
     reader.readAsDataURL(file);
   }
 
@@ -567,7 +618,7 @@ export default function CacaoApp() {
         "Observacoes":        form.observacoes,
         "Nome Reportante":    form.nome,
         "Email Reportante":   form.email,
-        "Data e Hora":        new Date().toISOString(),
+        "Data e Hora":        form.dataFoto || new Date().toISOString(),
         ...(fotoUrl && { "Foto": [{ url: fotoUrl }] }),
       };
       Object.keys(fields).forEach(k => fields[k] === undefined && delete fields[k]);
@@ -659,6 +710,12 @@ export default function CacaoApp() {
               background:"rgba(255,165,2,0.07)", borderRadius:8 }}>{aiError}</div>
           )}
           {aiResult && <AIBadge result={aiResult} />}
+          {form.fonteLocalizacao === "GPS (foto)" && (
+            <div style={{ marginTop:8, padding:"8px 12px", background:"rgba(0,200,160,0.08)",
+              border:"1px solid rgba(0,200,160,0.2)", borderRadius:8, fontSize:12, color:"#00c8a0" }}>
+              📍 Localização extraída da foto automaticamente
+            </div>
+          )}
           <button onClick={() => fileRef.current.click()}
             style={{ width:"100%", marginTop:8, padding:9, borderRadius:8,
               background:"transparent", border:"1px solid rgba(255,255,255,0.1)",
