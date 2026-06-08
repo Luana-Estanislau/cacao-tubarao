@@ -39,17 +39,17 @@ async function fetchRegistros() {
 
 // ─── AI badge color ───────────────────────────────────────────
 function aiColor(val) {
-  if (val === "sim") return "#ff4757";
-  if (val === "talvez") return "#ffa502";
-  if (val === "nao") return "#2ed573";
-  return "rgba(255,255,255,0.3)";
+  if (val === "sim") return "#CF0F36";
+  if (val === "talvez") return "#600E0A";
+  if (val === "nao") return "#4B8399";
+  return "rgba(255,255,255,0.2)";
 }
 
 function aiLabel(val) {
-  if (val === "sim") return "⚠ Provável tubarão";
-  if (val === "talvez") return "? Possível tubarão";
-  if (val === "nao") return "✓ Não identificado";
-  return "~ Inconclusivo";
+  if (val === "sim") return "PROVÁVEL TUBARÃO";
+  if (val === "talvez") return "POSSÍVEL TUBARÃO";
+  if (val === "nao") return "NÃO IDENTIFICADO";
+  return "INCONCLUSIVO";
 }
 
 // ─── Stats bar ────────────────────────────────────────────────
@@ -63,8 +63,8 @@ function StatsBar({ registros }) {
     <div style={{
       display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
       gap: 8, padding: "12px 16px",
-      background: "rgba(0,0,0,0.3)",
-      borderBottom: "1px solid rgba(0,200,160,0.12)",
+      background: "#10263F",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
     }}>
       {[
         { label: "Registros", value: total },
@@ -73,10 +73,12 @@ function StatsBar({ registros }) {
         { label: "Estados", value: estados },
       ].map(({ label, value }) => (
         <div key={label} style={{ textAlign: "center" }}>
-          <div style={{ color: "#00c8a0", fontFamily: "'Space Mono',monospace", fontSize: 18, fontWeight: 700 }}>
+          <div style={{ color: "#CF0F36", fontFamily: "'Oswald',sans-serif", fontSize: 20, fontWeight: 400 }}>
             {value}
           </div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 9,
+            textTransform: "uppercase", letterSpacing: "0.1em",
+            fontFamily: "'Oswald',sans-serif" }}>
             {label}
           </div>
         </div>
@@ -95,24 +97,27 @@ function popupHTML(record, count) {
   const label = aiLabel(f["Analise IA"]);
 
   return `
-    <div style="font-family:'DM Sans',sans-serif;min-width:200px;max-width:260px">
-      <div style="font-weight:700;font-size:15px;color:#001a2c;margin-bottom:4px">
+    <div style="font-family:'Montserrat',sans-serif;min-width:200px;max-width:260px">
+      <div style="font-weight:700;font-size:15px;color:#10263F;margin-bottom:4px">
         ${f.Estabelecimento || "Sem nome"}
       </div>
       <div style="font-size:12px;color:#555;margin-bottom:8px">
         ${[f.Tipo, f.Cidade, f.Estado].filter(Boolean).join(" · ")}
       </div>
-      <div style="display:inline-block;background:${color};color:${f["Analise IA"] === "talvez" || f["Analise IA"] === "nao" ? "#001a2c" : "#fff"};
-        padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-bottom:8px">
-        ${label}
+      <div style="display:inline-block;background:${color};color:#fff;
+        padding:3px 10px;font-size:10px;font-weight:400;margin-bottom:8px;
+        font-family:'Oswald',sans-serif;letter-spacing:0.08em;text-transform:uppercase;
+        transform:skewX(-8deg)">
+        <span style="display:inline-block;transform:skewX(8deg)">${label}</span>
       </div>
-      ${f["Forma de Venda"] ? `<div style="font-size:12px;color:#444;margin-bottom:4px">🐟 ${f["Forma de Venda"]}</div>` : ""}
-      ${f["Preco por kg"] ? `<div style="font-size:12px;color:#444;margin-bottom:4px">💰 R$ ${f["Preco por kg"]}/kg</div>` : ""}
-      ${count > 1 ? `<div style="font-size:12px;font-weight:700;color:#e74c3c;margin-bottom:8px">📍 ${count} registros neste local</div>` : ""}
-      <a href="${mapsUrl}" target="_blank" 
-        style="display:block;text-align:center;background:#001a2c;color:#00c8a0;
-          padding:6px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;margin-top:4px">
-        Ver no Google Maps →
+      ${f["Forma de Venda"] ? `<div style="font-size:12px;color:#444;margin-bottom:4px">${f["Forma de Venda"]}</div>` : ""}
+      ${f["Preco por kg"] ? `<div style="font-size:12px;color:#444;margin-bottom:4px">R$ ${f["Preco por kg"]}/kg</div>` : ""}
+      ${count > 1 ? `<div style="font-size:12px;font-weight:700;color:#CF0F36;margin-bottom:8px">${count} registros neste local</div>` : ""}
+      <a href="${mapsUrl}" target="_blank"
+        style="display:block;text-align:center;background:#10263F;color:#4B8399;
+          padding:6px;font-size:11px;font-weight:400;text-decoration:none;margin-top:4px;
+          font-family:'Oswald',sans-serif;letter-spacing:0.08em;text-transform:uppercase">
+        Ver no Google Maps
       </a>
     </div>
   `;
@@ -138,7 +143,6 @@ export default function MapaPublico() {
   useEffect(() => {
     if (loading || !mapRef.current || mapInstanceRef.current) return;
 
-    // Load Leaflet CSS
     if (!document.getElementById("leaflet-css")) {
       const link = document.createElement("link");
       link.id = "leaflet-css";
@@ -181,7 +185,6 @@ export default function MapaPublico() {
     };
   }, [loading]);
 
-  // Re-render markers when filter changes
   useEffect(() => {
     if (mapInstanceRef.current && window.L) {
       renderMarkers(mapInstanceRef.current, registros, filtro);
@@ -191,19 +194,16 @@ export default function MapaPublico() {
   function renderMarkers(map, records, filtroAtual) {
     const L = window.L;
 
-    // Remove existing markers
     map.eachLayer(layer => {
       if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
         map.removeLayer(layer);
       }
     });
 
-    // Filter records
     const filtered = filtroAtual === "todos"
       ? records
       : records.filter(r => r.fields["Analise IA"] === filtroAtual);
 
-    // Group by location (lat/lng rounded to 4 decimals)
     const groups = {};
     filtered.forEach(r => {
       const lat = r.fields.Latitude;
@@ -214,7 +214,6 @@ export default function MapaPublico() {
       groups[key].push(r);
     });
 
-    // Render grouped markers
     Object.entries(groups).forEach(([key, recs]) => {
       const [lat, lng] = key.split(",").map(Number);
       const count = recs.length;
@@ -229,12 +228,12 @@ export default function MapaPublico() {
         color: "#fff",
         weight: 2,
         opacity: 1,
-        fillOpacity: 0.85,
+        fillOpacity: 0.9,
       }).addTo(map);
 
       if (count > 1) {
         const icon = L.divIcon({
-          html: `<div style="color:#fff;font-size:10px;font-weight:700;font-family:monospace;
+          html: `<div style="color:#fff;font-size:10px;font-weight:700;font-family:'Oswald',sans-serif;
             display:flex;align-items:center;justify-content:center;
             width:${radius * 2}px;height:${radius * 2}px;margin-left:-${radius}px;margin-top:-${radius}px">
             ${count}
@@ -251,14 +250,14 @@ export default function MapaPublico() {
       });
     });
 
-    // Add popup styles
     if (!document.getElementById("popup-styles")) {
       const style = document.createElement("style");
       style.id = "popup-styles";
       style.textContent = `
         .cacao-popup .leaflet-popup-content-wrapper {
-          border-radius: 12px;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+          border-radius: 4px;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+          border: 1px solid rgba(207,15,54,0.15);
         }
         .cacao-popup .leaflet-popup-tip { background: #fff; }
         .leaflet-control-attribution { display: none; }
@@ -267,36 +266,40 @@ export default function MapaPublico() {
     }
   }
 
-  // Records without coordinates (list view) — only show if they have a name
-  const semCoordenadas = registros.filter(r => 
+  const semCoordenadas = registros.filter(r =>
     (!r.fields.Latitude || !r.fields.Longitude) && r.fields.Estabelecimento
   );
 
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(160deg,#001a2c 0%,#002d3a 60%,#001a2c 100%)",
-      fontFamily: "'DM Sans',sans-serif",
-      color: "#e8f4f0",
+      background: "#000000",
+      fontFamily: "'Montserrat',sans-serif",
+      color: "#ffffff",
       display: "flex", flexDirection: "column",
     }}>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,800;1,800&family=Oswald:wght@400;700&display=swap" rel="stylesheet" />
 
       {/* Header */}
       <div style={{
-        background: "rgba(0,0,0,0.3)", backdropFilter: "blur(12px)",
-        borderBottom: "1px solid rgba(0,200,160,0.12)",
+        background: "#000000", borderBottom: "1px solid rgba(207,15,54,0.2)",
         padding: "12px 16px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
         position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 22 }}>🦈</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <img src="/shark-logo.JPG" alt="Cação é Tubarão"
+            style={{ width: 34, height: 34, objectFit: "cover", borderRadius: "50%",
+              border: "2px solid #CF0F36", flexShrink: 0 }} />
           <div>
-            <div style={{ fontFamily: "'Space Mono',monospace", fontWeight: 700, fontSize: 12, color: "#00c8a0" }}>
-              MAPA DE AVISTAMENTOS
+            <div style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 800,
+              fontStyle: "italic", fontSize: 13, color: "#ffffff",
+              textTransform: "uppercase", letterSpacing: "0.04em", lineHeight: 1.1 }}>
+              Mapa de Avistamentos
             </div>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
+            <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 9,
+              color: "rgba(255,255,255,0.4)", letterSpacing: "0.12em",
+              textTransform: "uppercase", marginTop: 1 }}>
               Cação é Tubarão · Brasil
             </div>
           </div>
@@ -304,11 +307,12 @@ export default function MapaPublico() {
         <button
           onClick={() => navigate("/")}
           style={{
-            padding: "8px 14px", borderRadius: 8,
-            background: "linear-gradient(135deg,#00c8a0,#00a080)",
-            border: "none", color: "#001a2c",
-            fontWeight: 700, fontSize: 12, cursor: "pointer",
-            fontFamily: "'Space Mono',monospace",
+            padding: "8px 16px", borderRadius: 4,
+            background: "#CF0F36",
+            border: "none", color: "#ffffff",
+            fontWeight: 400, fontSize: 12, cursor: "pointer",
+            fontFamily: "'Oswald',sans-serif",
+            letterSpacing: "0.1em", textTransform: "uppercase",
           }}
         >
           + Registrar
@@ -319,29 +323,35 @@ export default function MapaPublico() {
       {!loading && <StatsBar registros={registros} />}
 
       {/* Filtros */}
-      <div style={{ padding: "10px 16px", display: "flex", gap: 8, overflowX: "auto" }}>
+      <div style={{ padding: "10px 16px", display: "flex", gap: 8, overflowX: "auto",
+        background: "#000000", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         {[
           { key: "todos", label: "Todos" },
-          { key: "sim", label: "⚠ Prováveis" },
-          { key: "talvez", label: "? Possíveis" },
-          { key: "nao", label: "✓ Não identificados" },
-          { key: "indeterminado", label: "~ Sem análise" },
+          { key: "sim", label: "Prováveis" },
+          { key: "talvez", label: "Possíveis" },
+          { key: "nao", label: "Não identificados" },
+          { key: "indeterminado", label: "Sem análise" },
         ].map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setFiltro(key)}
             style={{
-              padding: "6px 12px", borderRadius: 20, whiteSpace: "nowrap",
-              background: filtro === key ? "#00c8a0" : "rgba(255,255,255,0.06)",
-              border: filtro === key ? "none" : "1px solid rgba(255,255,255,0.1)",
-              color: filtro === key ? "#001a2c" : "rgba(255,255,255,0.6)",
-              fontWeight: filtro === key ? 700 : 400,
-              cursor: "pointer", fontSize: 12,
-              fontFamily: "'Space Mono',monospace",
+              padding: "6px 14px", whiteSpace: "nowrap",
+              background: filtro === key ? "#CF0F36" : "rgba(255,255,255,0.05)",
+              border: filtro === key ? "none" : "1px solid rgba(255,255,255,0.08)",
+              color: filtro === key ? "#ffffff" : "rgba(255,255,255,0.6)",
+              cursor: "pointer", fontSize: 11,
+              fontFamily: "'Oswald',sans-serif",
+              letterSpacing: "0.08em", textTransform: "uppercase",
               transition: "all 0.2s",
+              transform: filtro === key ? "skewX(-8deg)" : "none",
+              display: "inline-block",
+              borderRadius: 2,
             }}
           >
-            {label}
+            <span style={{ display: "inline-block", transform: filtro === key ? "skewX(8deg)" : "none" }}>
+              {label}
+            </span>
           </button>
         ))}
       </div>
@@ -353,9 +363,13 @@ export default function MapaPublico() {
             position: "absolute", inset: 0, display: "flex",
             alignItems: "center", justifyContent: "center",
             flexDirection: "column", gap: 12, zIndex: 10,
+            background: "#000000",
           }}>
-            <div style={{ fontSize: 36 }}>🦈</div>
-            <div style={{ color: "#00c8a0", fontFamily: "'Space Mono',monospace", fontSize: 13 }}>
+            <img src="/shark-logo.JPG" alt="Carregando"
+              style={{ width: 56, height: 56, objectFit: "cover", borderRadius: "50%",
+                border: "2px solid #CF0F36", opacity: 0.8 }} />
+            <div style={{ color: "rgba(255,255,255,0.6)", fontFamily: "'Oswald',sans-serif",
+              fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase" }}>
               Carregando registros...
             </div>
           </div>
@@ -363,7 +377,8 @@ export default function MapaPublico() {
         {error && (
           <div style={{
             position: "absolute", inset: 0, display: "flex",
-            alignItems: "center", justifyContent: "center", color: "#ff6b6b", fontSize: 14,
+            alignItems: "center", justifyContent: "center",
+            color: "#CF0F36", fontSize: 14, fontFamily: "'Montserrat',sans-serif",
           }}>
             {error}
           </div>
@@ -373,33 +388,41 @@ export default function MapaPublico() {
 
       {/* Lista de registros sem coordenadas */}
       {semCoordenadas.length > 0 && (
-        <div style={{ padding: "16px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        <div style={{ padding: "16px", borderTop: "1px solid rgba(255,255,255,0.06)",
+          background: "#10263F" }}>
           <div style={{
-            color: "#7fffd4", fontFamily: "'Space Mono',monospace",
-            fontSize: 11, fontWeight: 700, marginBottom: 10,
-            textTransform: "uppercase", letterSpacing: "0.08em",
+            color: "rgba(255,255,255,0.6)", fontFamily: "'Oswald',sans-serif",
+            fontSize: 11, fontWeight: 400, marginBottom: 10,
+            textTransform: "uppercase", letterSpacing: "0.1em",
           }}>
             {semCoordenadas.length} registro(s) sem localização no mapa
           </div>
           {semCoordenadas.map(r => (
             <div key={r.id} style={{
-              background: "rgba(255,255,255,0.04)",
-              borderRadius: 8, padding: "10px 12px", marginBottom: 8,
+              background: "rgba(0,0,0,0.3)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 4, padding: "10px 12px", marginBottom: 8,
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.fields.Estabelecimento || "Sem nome"}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Montserrat',sans-serif" }}>
+                  {r.fields.Estabelecimento || "Sem nome"}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)",
+                  fontFamily: "'Montserrat',sans-serif", marginTop: 2 }}>
                   {[r.fields.Tipo, r.fields.Cidade, r.fields.Estado].filter(Boolean).join(" · ")}
                 </div>
               </div>
               <div style={{
                 background: aiColor(r.fields["Analise IA"]),
-                borderRadius: 4, padding: "2px 8px",
-                fontSize: 10, fontWeight: 700,
-                color: r.fields["Analise IA"] === "talvez" || r.fields["Analise IA"] === "nao" ? "#001a2c" : "#fff",
+                padding: "3px 10px",
+                fontSize: 10, fontWeight: 400, color: "#fff",
+                fontFamily: "'Oswald',sans-serif", letterSpacing: "0.08em",
+                textTransform: "uppercase", transform: "skewX(-8deg)", borderRadius: 2,
               }}>
-                {r.fields["Analise IA"] || "?"}
+                <span style={{ display: "inline-block", transform: "skewX(8deg)" }}>
+                  {r.fields["Analise IA"] || "?"}
+                </span>
               </div>
             </div>
           ))}

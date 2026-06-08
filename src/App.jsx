@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import * as exifr from "exifr";
 
 // ============================================================
-// 🔑 CONFIGURAÇÃO — credenciais via variáveis de ambiente
+// CONFIGURAÇÃO — credenciais via variáveis de ambiente
 // ============================================================
 const AIRTABLE_TOKEN = import.meta.env.VITE_AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
@@ -88,7 +88,6 @@ const ESTADOS_BR = [
   "RS","RO","RR","SC","SP","SE","TO",
 ];
 
-// Converte nome completo do estado → sigla
 const ESTADO_NOME_PARA_SIGLA = {
   "Acre":"AC","Alagoas":"AL","Amapá":"AP","Amazonas":"AM",
   "Bahia":"BA","Ceará":"CE","Distrito Federal":"DF","Espírito Santo":"ES",
@@ -102,9 +101,7 @@ const ESTADO_NOME_PARA_SIGLA = {
 function normalizeEstado(raw) {
   if (!raw) return "";
   const upper = raw.toUpperCase().trim();
-  // já é sigla
   if (ESTADOS_BR.includes(upper)) return upper;
-  // nome completo
   return ESTADO_NOME_PARA_SIGLA[raw.trim()] || "";
 }
 
@@ -196,7 +193,6 @@ function MapPicker({ lat, lng, onLocationChange }) {
   useEffect(() => {
     if (mapInstanceRef.current) return;
 
-    // Load Leaflet CSS
     if (!document.getElementById("leaflet-css")) {
       const link = document.createElement("link");
       link.id = "leaflet-css";
@@ -205,7 +201,6 @@ function MapPicker({ lat, lng, onLocationChange }) {
       document.head.appendChild(link);
     }
 
-    // Load Leaflet JS
     const loadLeaflet = () => {
       if (window.L) { initMap(); return; }
       const script = document.createElement("script");
@@ -227,7 +222,7 @@ function MapPicker({ lat, lng, onLocationChange }) {
       }).addTo(map);
 
       const icon = L.divIcon({
-        html: `<div style="width:32px;height:32px;background:#00c8a0;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.4)"></div>`,
+        html: `<div style="width:32px;height:32px;background:#CF0F36;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.5)"></div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 32],
         className: "",
@@ -275,24 +270,96 @@ function MapPicker({ lat, lng, onLocationChange }) {
   return (
     <div
       ref={containerRef}
-      style={{ width: "100%", height: 220, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(0,200,160,0.2)" }}
+      style={{ width: "100%", height: 220, borderRadius: 4, overflow: "hidden", border: "1px solid rgba(207,15,54,0.3)" }}
     />
   );
 }
 
-// ─── Subcomponents ────────────────────────────────────────────
-function SharkIcon({ size = 36 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
-      <path d="M10 42 C18 35,28 30,40 32 C52 34,62 38,70 36 C62 44,52 48,40 46 C32 44,22 46,18 52 Z" fill="#00c8a0" opacity="0.9"/>
-      <path d="M40 32 L44 18 L36 30 Z" fill="#00c8a0" opacity="0.7"/>
-      <path d="M28 44 L24 56 L34 46 Z" fill="#00c8a0" opacity="0.6"/>
-      <circle cx="62" cy="37" r="2" fill="#001a2c"/>
-      <path d="M64 40 C66 42,66 44,64 45" stroke="#001a2c" strokeWidth="1.5" fill="none"/>
-    </svg>
-  );
+// ─── SVG Icons ───────────────────────────────────────────────
+const IconCamera = ({ size = 28, color = "#ffffff" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+    <circle cx="12" cy="13" r="4"/>
+  </svg>
+);
+
+const IconSearch = ({ size = 20, color = "#ffffff" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+);
+
+const IconPin = ({ size = 20, color = "#ffffff" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+    <circle cx="12" cy="10" r="3"/>
+  </svg>
+);
+
+const IconMap = ({ size = 20, color = "#ffffff" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+    <line x1="8" y1="2" x2="8" y2="18"/>
+    <line x1="16" y1="6" x2="16" y2="22"/>
+  </svg>
+);
+
+const IconEnvelope = ({ size = 20, color = "#ffffff" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+    <polyline points="22,6 12,13 2,6"/>
+  </svg>
+);
+
+const IconArrowLeft = ({ size = 18, color = "#ffffff" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="19" y1="12" x2="5" y2="12"/>
+    <polyline points="12 19 5 12 12 5"/>
+  </svg>
+);
+
+const IconX = ({ size = 14, color = "#ffffff" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+// ─── Helpers — date formatting ────────────────────────────────
+// ISO string → "dd/mm/aaaa"
+function isoToDDMMYYYY(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return [
+    String(d.getDate()).padStart(2, "0"),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    d.getFullYear(),
+  ].join("/");
 }
 
+// "dd/mm/aaaa" → ISO string (or "" if invalid)
+function ddmmyyyyToISO(val) {
+  const parts = val.replace(/\D/g, "");
+  if (parts.length !== 8) return "";
+  const day   = parseInt(parts.slice(0, 2), 10);
+  const month = parseInt(parts.slice(2, 4), 10) - 1;
+  const year  = parseInt(parts.slice(4, 8), 10);
+  const d = new Date(year, month, day);
+  if (isNaN(d) || d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return "";
+  return d.toISOString();
+}
+
+// Auto-insert slashes while typing dd/mm/aaaa
+function maskDate(raw) {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return digits.slice(0, 2) + "/" + digits.slice(2);
+  return digits.slice(0, 2) + "/" + digits.slice(2, 4) + "/" + digits.slice(4);
+}
+
+// ─── Subcomponents ────────────────────────────────────────────
 function ProgressBar({ currentStep }) {
   const idx = STEPS.indexOf(currentStep);
   return (
@@ -301,18 +368,18 @@ function ProgressBar({ currentStep }) {
         <div key={step} style={{ display:"flex", alignItems:"center", flex: i < STEPS.length-1 ? 1 : 0 }}>
           <div style={{
             width:28, height:28, borderRadius:"50%",
-            background: i <= idx ? "#00c8a0" : "rgba(255,255,255,0.1)",
-            border: i === idx ? "2px solid #7fffd4" : "2px solid transparent",
+            background: i <= idx ? "#CF0F36" : "rgba(255,255,255,0.08)",
+            border: i === idx ? "2px solid rgba(207,15,54,0.6)" : "2px solid transparent",
             display:"flex", alignItems:"center", justifyContent:"center",
             fontSize:11, fontWeight:700,
-            color: i <= idx ? "#001a2c" : "rgba(255,255,255,0.3)",
-            flexShrink:0, fontFamily:"'Space Mono',monospace", transition:"all 0.3s",
+            color: i <= idx ? "#fff" : "rgba(255,255,255,0.3)",
+            flexShrink:0, fontFamily:"'Oswald',sans-serif", transition:"all 0.3s",
           }}>
-            {i < idx ? "✓" : i+1}
+            {i < idx ? "✔" : i+1}
           </div>
           {i < STEPS.length-1 && (
             <div style={{ flex:1, height:2, margin:"0 4px", transition:"background 0.3s",
-              background: i < idx ? "#00c8a0" : "rgba(255,255,255,0.08)" }} />
+              background: i < idx ? "#CF0F36" : "rgba(255,255,255,0.08)" }} />
           )}
         </div>
       ))}
@@ -322,24 +389,31 @@ function ProgressBar({ currentStep }) {
 
 function AIBadge({ result }) {
   const map = {
-    sim:          { bg:"#ff4757", text:"#fff",     label:"⚠ Provável tubarão" },
-    talvez:       { bg:"#ffa502", text:"#001a2c",  label:"? Possível tubarão" },
-    nao:          { bg:"#2ed573", text:"#001a2c",  label:"✓ Não parece tubarão" },
-    indeterminado:{ bg:"rgba(255,255,255,0.12)", text:"#fff", label:"~ Inconclusivo" },
+    sim:          { bg:"#CF0F36", text:"#fff",     label:"PROVÁVEL TUBARÃO" },
+    talvez:       { bg:"#600E0A", text:"#fff",      label:"POSSÍVEL TUBARÃO" },
+    nao:          { bg:"#10263F", text:"rgba(255,255,255,0.85)", label:"NÃO PARECE TUBARÃO" },
+    indeterminado:{ bg:"rgba(255,255,255,0.08)", text:"rgba(255,255,255,0.7)", label:"INCONCLUSIVO" },
   };
   const c = map[result.ehCacao] || map.indeterminado;
   return (
-    <div style={{ background:c.bg, color:c.text, borderRadius:10, padding:"10px 14px", marginTop:10, fontSize:13 }}>
-      <div style={{ fontWeight:700, fontSize:14, marginBottom:4, fontFamily:"'Space Mono',monospace" }}>{c.label}</div>
-      <div style={{ opacity:0.85, lineHeight:1.5 }}>{result.observacao}</div>
+    <div style={{ background:c.bg, color:c.text, borderRadius:4, padding:"10px 14px", marginTop:10, fontSize:13,
+      border:"1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ fontWeight:400, fontSize:13, marginBottom:4,
+        fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", textTransform:"uppercase" }}>{c.label}</div>
+      <div style={{ opacity:0.85, lineHeight:1.5, fontFamily:"'Montserrat',sans-serif", fontSize:13 }}>{result.observacao}</div>
       {result.indicadores?.length > 0 && (
         <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:4 }}>
           {result.indicadores.map((ind,i) => (
-            <span key={i} style={{ background:"rgba(0,0,0,0.2)", borderRadius:4, padding:"2px 6px", fontSize:11 }}>{ind}</span>
+            <span key={i} style={{
+              background:"rgba(0,0,0,0.25)", borderRadius:2, padding:"2px 8px",
+              fontSize:11, fontFamily:"'Oswald',sans-serif", letterSpacing:"0.05em", textTransform:"uppercase",
+            }}>{ind}</span>
           ))}
         </div>
       )}
-      <div style={{ marginTop:6, fontSize:11, opacity:0.55 }}>Confiança da IA: {result.confianca}</div>
+      <div style={{ marginTop:6, fontSize:11, opacity:0.55, fontFamily:"'Montserrat',sans-serif" }}>
+        Confiança da IA: {result.confianca}
+      </div>
     </div>
   );
 }
@@ -347,35 +421,37 @@ function AIBadge({ result }) {
 // ─── Styles ───────────────────────────────────────────────────
 const S = {
   input: {
-    width:"100%", background:"rgba(255,255,255,0.06)",
-    border:"1px solid rgba(255,255,255,0.1)", borderRadius:8,
-    padding:"10px 12px", color:"#e8f4f0", fontSize:14,
-    fontFamily:"'DM Sans',sans-serif", outline:"none",
+    width:"100%", background:"rgba(255,255,255,0.05)",
+    border:"1px solid rgba(255,255,255,0.1)", borderRadius:4,
+    padding:"10px 12px", color:"#ffffff", fontSize:14,
+    fontFamily:"'Montserrat',sans-serif", outline:"none",
     boxSizing:"border-box", transition:"border 0.2s",
   },
   label: {
     display:"block", fontSize:11, fontWeight:700,
-    color:"#7fffd4", marginBottom:5, textTransform:"uppercase",
-    letterSpacing:"0.08em", fontFamily:"'Space Mono',monospace",
+    color:"rgba(255,255,255,0.6)", marginBottom:5, textTransform:"uppercase",
+    letterSpacing:"0.1em", fontFamily:"'Oswald',sans-serif",
   },
   group: { marginBottom:14 },
   btnPrimary: {
-    width:"100%", padding:"13px", borderRadius:10, border:"none",
-    background:"linear-gradient(135deg,#00c8a0,#00a080)",
-    color:"#001a2c", fontWeight:800, fontSize:15, cursor:"pointer",
-    fontFamily:"'Space Mono',monospace", transition:"all 0.2s",
+    width:"100%", padding:"13px", borderRadius:4, border:"none",
+    background:"#CF0F36",
+    color:"#ffffff", fontWeight:400, fontSize:15, cursor:"pointer",
+    fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em",
+    textTransform:"uppercase", transition:"background 0.2s",
   },
   btnSecondary: {
-    width:"100%", padding:"12px", borderRadius:10,
-    background:"rgba(0,200,160,0.08)", border:"1px solid rgba(0,200,160,0.35)",
-    color:"#00c8a0", fontWeight:700, fontSize:14, cursor:"pointer",
-    fontFamily:"'Space Mono',monospace",
+    width:"100%", padding:"12px", borderRadius:4,
+    background:"rgba(207,15,54,0.1)", border:"1px solid rgba(207,15,54,0.4)",
+    color:"#CF0F36", fontWeight:400, fontSize:14, cursor:"pointer",
+    fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", textTransform:"uppercase",
   },
   btnGhost: {
-    padding:"13px 20px", borderRadius:10,
-    border:"1px solid rgba(255,255,255,0.1)",
+    padding:"13px 20px", borderRadius:4,
+    border:"1px solid rgba(255,255,255,0.12)",
     background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.55)",
-    cursor:"pointer", fontSize:15, fontWeight:600,
+    cursor:"pointer", fontSize:14, fontWeight:400,
+    fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", textTransform:"uppercase",
   },
 };
 
@@ -395,6 +471,7 @@ export default function CacaoApp() {
     cep:"", endereco:"", numero:"", cidade:"", estado:"",
     latitude:null, longitude:null,
     googlePlaceId:"", fonteLocalizacao:"", dataFoto:"",
+    dataObservacao:"",
     formaVenda:"", precoKg:"",
     especieDeclarada:"", origem:"", observacoes:"",
     nome:"", email:"", concordo:false,
@@ -419,18 +496,15 @@ export default function CacaoApp() {
     setFoto(URL.createObjectURL(file));
     setAiResult(null); setAiError(null);
 
-    // Read EXIF data
     exifr.parse(file, { gps: true, tiff: true }).then(exif => {
       if (!exif) return;
       const updates = {};
 
-      // GPS coordinates
       if (exif.latitude && exif.longitude && !form.latitude) {
         updates.latitude = exif.latitude;
         updates.longitude = exif.longitude;
         updates.fonteLocalizacao = "GPS (foto)";
         setShowMap(true);
-        // Reverse geocode
         reverseGeocode(exif.latitude, exif.longitude).then(addr => {
           setForm(f => ({
             ...f,
@@ -444,19 +518,17 @@ export default function CacaoApp() {
         });
       }
 
-      // Date taken
       if (exif.DateTimeOriginal) {
-        updates.dataFoto = exif.DateTimeOriginal.toISOString();
+        const iso = exif.DateTimeOriginal.toISOString();
+        updates.dataFoto = iso;
+        updates.dataObservacao = isoToDDMMYYYY(iso);
       }
 
       if (Object.keys(updates).length > 0) {
         setForm(f => ({ ...f, ...updates }));
       }
-    }).catch(() => {
-      // No EXIF data — that's fine
-    });
+    }).catch(() => {});
 
-    // Convert to JPEG base64
     const reader = new FileReader();
     reader.onload = e => {
       const img = new Image();
@@ -543,17 +615,10 @@ export default function CacaoApp() {
 
   function handleSelectPlace(place) {
     const addr = place.formattedAddress || "";
-    // Google Places (New) address format for Brazil:
-    // "Street, Number - Neighborhood, City - State, CEP, Brasil"
-    // Extract using regex for Brazilian state codes
     const stateMatch = addr.match(/\b([A-Z]{2}),\s*\d{5}/);
     const estado = stateMatch ? stateMatch[1] : "";
-
-    // City is usually before " - STATE"
     const cityMatch = addr.match(/,\s*([^,]+)\s*-\s*[A-Z]{2},/);
     const cidade = cityMatch ? cityMatch[1].trim() : "";
-
-    // Street is everything before the city part
     const streetParts = addr.split(",");
     const endereco = streetParts.slice(0, 2).join(",").trim();
 
@@ -572,6 +637,7 @@ export default function CacaoApp() {
     setPlacesResults([]);
     setShowMap(true);
   }
+
   const handleMapLocation = useCallback(async ({ lat, lng, addr }) => {
     setForm(f => ({
       ...f,
@@ -587,7 +653,6 @@ export default function CacaoApp() {
   async function handleSubmit() {
     setSubmitting(true); setSubmitError(null);
     try {
-      // Compress and upload photo to Cloudinary
       let fotoUrl = null;
       if (fotoBase64) {
         try {
@@ -609,7 +674,6 @@ export default function CacaoApp() {
         "Longitude":          form.longitude ? parseFloat(form.longitude) : undefined,
         "Google Place ID":    form.googlePlaceId,
         "Fonte Localizacao":  form.fonteLocalizacao,
-        "Google Place ID":    form.googlePlaceId || undefined,
         "Forma de Venda":     form.formaVenda,
         "Preco por kg":       form.precoKg ? parseFloat(form.precoKg) : undefined,
         "Especie Declarada":  form.especieDeclarada,
@@ -618,7 +682,8 @@ export default function CacaoApp() {
         "Observacoes":        form.observacoes,
         "Nome Reportante":    form.nome,
         "Email Reportante":   form.email,
-        "Data e Hora":        form.dataFoto || new Date().toISOString(),
+        "Data Registro":      new Date().toISOString(),
+        "Data Observacao":    form.dataObservacao ? (ddmmyyyyToISO(form.dataObservacao) || undefined) : undefined,
         ...(fotoUrl && { "Foto": [{ url: fotoUrl }] }),
       };
       Object.keys(fields).forEach(k => fields[k] === undefined && delete fields[k]);
@@ -640,6 +705,7 @@ export default function CacaoApp() {
       cep:"", endereco:"", numero:"", cidade:"", estado:"",
       latitude:null, longitude:null,
       googlePlaceId:"", fonteLocalizacao:"",
+      dataObservacao:"",
       formaVenda:"", precoKg:"",
       especieDeclarada:"", origem:"", observacoes:"",
       nome:"", email:"", concordo:false,
@@ -660,67 +726,80 @@ export default function CacaoApp() {
 
   const StepFoto = (
     <div>
-      <h2 style={{ color:"#fff", fontSize:20, fontWeight:700, margin:"0 0 6px", fontFamily:"'Space Mono',monospace" }}>
-        Fotografe o produto
+      <h2 style={{ color:"#fff", fontSize:20, fontWeight:800, fontStyle:"italic",
+        margin:"0 0 6px", fontFamily:"'Montserrat',sans-serif", textTransform:"uppercase", letterSpacing:"0.02em" }}>
+        Fotografe o Produto
       </h2>
-      <p style={{ color:"rgba(255,255,255,0.45)", fontSize:13, margin:"0 0 20px", lineHeight:1.6 }}>
-        Tire uma foto da etiqueta, produto ou display de venda. A IA vai analisar se parece tubarão.
+      <p style={{ color:"rgba(255,255,255,0.6)", fontSize:13, margin:"0 0 20px", lineHeight:1.6,
+        fontFamily:"'Montserrat',sans-serif" }}>
+        Tire uma foto da etiqueta, produto ou display de venda. A IA vai tentar identificar espécie, preço e origem na etiqueta ou placa.
       </p>
 
       {!foto ? (
         <div
           onClick={() => fileRef.current.click()}
           style={{
-            border:"2px dashed rgba(0,200,160,0.35)", borderRadius:16,
+            border:"2px dashed rgba(207,15,54,0.4)", borderRadius:4,
             padding:"44px 20px", textAlign:"center", cursor:"pointer",
-            background:"rgba(0,200,160,0.03)", transition:"all 0.2s",
+            background:"rgba(207,15,54,0.03)", transition:"border-color 0.2s",
           }}
-          onMouseOver={e => e.currentTarget.style.borderColor="#00c8a0"}
-          onMouseOut={e  => e.currentTarget.style.borderColor="rgba(0,200,160,0.35)"}
+          onMouseOver={e => e.currentTarget.style.borderColor="#CF0F36"}
+          onMouseOut={e  => e.currentTarget.style.borderColor="rgba(207,15,54,0.4)"}
         >
-          <div style={{ fontSize:44, marginBottom:10 }}>📸</div>
-          <div style={{ color:"#00c8a0", fontWeight:700, fontFamily:"'Space Mono',monospace", fontSize:13 }}>
+          <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
+            <IconCamera size={44} color="rgba(207,15,54,0.8)" />
+          </div>
+          <div style={{ color:"#CF0F36", fontFamily:"'Oswald',sans-serif",
+            letterSpacing:"0.1em", textTransform:"uppercase", fontSize:13 }}>
             Toque para adicionar foto
           </div>
-          <div style={{ color:"rgba(255,255,255,0.3)", fontSize:12, marginTop:5 }}>Câmera ou galeria</div>
+          <div style={{ color:"rgba(255,255,255,0.3)", fontSize:12, marginTop:5,
+            fontFamily:"'Montserrat',sans-serif" }}>Câmera ou galeria</div>
         </div>
       ) : (
         <div>
-          <div style={{ position:"relative", borderRadius:12, overflow:"hidden", marginBottom:10 }}>
+          <div style={{ position:"relative", borderRadius:4, overflow:"hidden", marginBottom:10 }}>
             <img src={foto} alt="Produto" style={{ width:"100%", maxHeight:240, objectFit:"cover", display:"block" }} />
-            <button onClick={() => { setFoto(null); setFotoBase64(null); setAiResult(null); }}
-              style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.6)", color:"#fff",
-                border:"none", borderRadius:"50%", width:28, height:28, cursor:"pointer", fontSize:14 }}>✕</button>
+            <button
+              onClick={() => { setFoto(null); setFotoBase64(null); setAiResult(null); }}
+              style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.7)",
+                border:"none", borderRadius:"50%", width:28, height:28, cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+              <IconX size={14} color="#ffffff" />
+            </button>
           </div>
 
           {!aiResult && !aiLoading && (
             <button onClick={handleAnalyze} style={{ ...S.btnSecondary, marginBottom:8 }}>
-              🦈 Analisar com IA
+              Analisar com IA
             </button>
           )}
           {aiLoading && (
-            <div style={{ textAlign:"center", padding:14, color:"#7fffd4",
-              fontFamily:"'Space Mono',monospace", fontSize:13,
-              background:"rgba(0,200,160,0.06)", borderRadius:8 }}>
+            <div style={{ textAlign:"center", padding:14, color:"rgba(255,255,255,0.6)",
+              fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", fontSize:13, textTransform:"uppercase",
+              background:"rgba(207,15,54,0.06)", borderRadius:4 }}>
               Analisando imagem...
             </div>
           )}
           {aiError && (
-            <div style={{ color:"#ffa502", fontSize:13, padding:10,
-              background:"rgba(255,165,2,0.07)", borderRadius:8 }}>{aiError}</div>
+            <div style={{ color:"rgba(255,255,255,0.7)", fontSize:13, padding:10,
+              background:"rgba(96,14,10,0.3)", borderRadius:4,
+              fontFamily:"'Montserrat',sans-serif" }}>{aiError}</div>
           )}
           {aiResult && <AIBadge result={aiResult} />}
           {form.fonteLocalizacao === "GPS (foto)" && (
-            <div style={{ marginTop:8, padding:"8px 12px", background:"rgba(0,200,160,0.08)",
-              border:"1px solid rgba(0,200,160,0.2)", borderRadius:8, fontSize:12, color:"#00c8a0" }}>
-              📍 Localização extraída da foto automaticamente
+            <div style={{ marginTop:8, padding:"8px 12px", background:"rgba(16,38,63,0.8)",
+              border:"1px solid rgba(75,131,153,0.3)", borderRadius:4, fontSize:12,
+              color:"#4B8399", fontFamily:"'Montserrat',sans-serif" }}>
+              Localização extraída da foto automaticamente
             </div>
           )}
           <button onClick={() => fileRef.current.click()}
-            style={{ width:"100%", marginTop:8, padding:9, borderRadius:8,
+            style={{ width:"100%", marginTop:8, padding:9, borderRadius:4,
               background:"transparent", border:"1px solid rgba(255,255,255,0.1)",
-              color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:13 }}>
-            Trocar foto
+              color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:12,
+              fontFamily:"'Oswald',sans-serif", letterSpacing:"0.08em", textTransform:"uppercase" }}>
+            Trocar Foto
           </button>
         </div>
       )}
@@ -728,10 +807,29 @@ export default function CacaoApp() {
       <input ref={fileRef} type="file" accept="image/*"
         style={{ display:"none" }} onChange={e => handleFotoUpload(e.target.files[0])} />
 
-      <div style={{ marginTop:12, padding:"10px 12px", background:"rgba(255,255,255,0.03)",
-        borderRadius:8, fontSize:12, color:"rgba(255,255,255,0.4)", lineHeight:1.6 }}>
-        💡 <strong style={{ color:"rgba(255,255,255,0.55)" }}>Dica:</strong> Inclua etiqueta com preço.
-        Se possível, pergunte a origem da espécie ao vendedor.
+      {/* Campo de data da observação */}
+      <div style={{ ...S.group, marginTop:16 }}>
+        <label style={S.label}>Data da Observação</label>
+        <input
+          style={S.input}
+          placeholder="dd/mm/aaaa"
+          value={form.dataObservacao}
+          onChange={e => upd("dataObservacao", maskDate(e.target.value))}
+          maxLength={10}
+          inputMode="numeric"
+        />
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4,
+          fontFamily:"'Montserrat',sans-serif" }}>
+          Preenchido automaticamente se a foto tiver data. Edite se necessário.
+        </div>
+      </div>
+
+      <div style={{ marginTop:4, padding:"10px 12px", background:"rgba(16,38,63,0.5)",
+        borderRadius:4, fontSize:12, color:"rgba(255,255,255,0.4)", lineHeight:1.6,
+        border:"1px solid rgba(255,255,255,0.06)", fontFamily:"'Montserrat',sans-serif" }}>
+        <strong style={{ color:"rgba(255,255,255,0.6)", fontFamily:"'Oswald',sans-serif",
+          letterSpacing:"0.08em", textTransform:"uppercase", fontSize:11 }}>Dica:</strong>{" "}
+        Inclua etiqueta com preço. Se possível, pergunte a origem da espécie ao vendedor.
       </div>
     </div>
   );
@@ -741,43 +839,49 @@ export default function CacaoApp() {
 
   const StepLocal = (
     <div>
-      <h2 style={{ color:"#fff", fontSize:20, fontWeight:700, margin:"0 0 6px", fontFamily:"'Space Mono',monospace" }}>
-        Onde foi encontrado?
+      <h2 style={{ color:"#fff", fontSize:20, fontWeight:800, fontStyle:"italic",
+        margin:"0 0 6px", fontFamily:"'Montserrat',sans-serif", textTransform:"uppercase" }}>
+        Onde Foi Encontrado?
       </h2>
-      <p style={{ color:"rgba(255,255,255,0.45)", fontSize:13, margin:"0 0 6px", lineHeight:1.6 }}>
+      <p style={{ color:"rgba(255,255,255,0.6)", fontSize:13, margin:"0 0 6px", lineHeight:1.6,
+        fontFamily:"'Montserrat',sans-serif" }}>
         Use um dos métodos abaixo para localizar o estabelecimento.
       </p>
 
-      {/* Instrução clara */}
-      <div style={{ background:"rgba(0,200,160,0.06)", border:"1px solid rgba(0,200,160,0.15)",
-        borderRadius:8, padding:"10px 12px", marginBottom:16, fontSize:12, color:"rgba(255,255,255,0.5)", lineHeight:1.7 }}>
-        🔍 <strong style={{ color:"rgba(255,255,255,0.7)" }}>Google Places</strong> — busca pelo nome (supermercados, peixarias...)<br/>
-        📍 <strong style={{ color:"rgba(255,255,255,0.7)" }}>GPS</strong> — usa sua localização atual (ideal para feiras)<br/>
-        🗺️ <strong style={{ color:"rgba(255,255,255,0.7)" }}>Mapa</strong> — marca no mapa se não está no local<br/>
-        📮 <strong style={{ color:"rgba(255,255,255,0.7)" }}>CEP</strong> — se souber o CEP do estabelecimento
+      <div style={{ background:"rgba(16,38,63,0.6)", border:"1px solid rgba(75,131,153,0.2)",
+        borderRadius:4, padding:"10px 12px", marginBottom:16, fontSize:12,
+        color:"rgba(255,255,255,0.5)", lineHeight:1.7, fontFamily:"'Montserrat',sans-serif" }}>
+        <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
+          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>Google Places</strong> — busca pelo nome<br/>
+        <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
+          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>GPS</strong> — usa sua localização atual<br/>
+        <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
+          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>Mapa</strong> — marca no mapa se não está no local<br/>
+        <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
+          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>CEP</strong> — se souber o CEP do estabelecimento
       </div>
 
-      {/* 4 métodos */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:8, marginBottom:18 }}>
         {[
-          { icon:"🔍", label:"Places", active: form.fonteLocalizacao==="Google Places",
+          { Icon: IconSearch, label:"Places", active: form.fonteLocalizacao==="Google Places",
             action: () => { document.getElementById("places-input")?.focus(); } },
-          { icon:"📍", label:"GPS", active: geoStatus==="ok" || geoStatus==="loading",
+          { Icon: IconPin, label:"GPS", active: geoStatus==="ok" || geoStatus==="loading",
             action: () => { setShowMap(false); handleGPS(); } },
-          { icon:"🗺️", label:"Mapa", active: showMap,
+          { Icon: IconMap, label:"Mapa", active: showMap,
             action: () => { setShowMap(v => !v); } },
-          { icon:"📮", label:"CEP", active: form.fonteLocalizacao==="CEP",
-            action: () => { setShowMap(false);
-              document.getElementById("campo-cep")?.focus(); } },
-        ].map(({ icon, label, action, active }) => (
+          { Icon: IconEnvelope, label:"CEP", active: form.fonteLocalizacao==="CEP",
+            action: () => { setShowMap(false); document.getElementById("campo-cep")?.focus(); } },
+        ].map(({ Icon, label, action, active }) => (
           <button key={label} onClick={action} style={{
-            padding:"10px 4px", borderRadius:8, cursor:"pointer",
-            background: active ? "rgba(0,200,160,0.15)" : "rgba(255,255,255,0.05)",
-            border: active ? "1px solid #00c8a0" : "1px solid rgba(255,255,255,0.08)",
-            color: active ? "#00c8a0" : "rgba(255,255,255,0.6)",
-            fontFamily:"'Space Mono',monospace", fontSize:10, fontWeight:700, textAlign:"center",
+            padding:"10px 4px", borderRadius:4, cursor:"pointer",
+            background: active ? "rgba(207,15,54,0.15)" : "rgba(255,255,255,0.04)",
+            border: active ? "1px solid #CF0F36" : "1px solid rgba(255,255,255,0.08)",
+            color: active ? "#CF0F36" : "rgba(255,255,255,0.6)",
+            fontFamily:"'Oswald',sans-serif", fontSize:11, fontWeight:400,
+            letterSpacing:"0.08em", textTransform:"uppercase", textAlign:"center",
+            display:"flex", flexDirection:"column", alignItems:"center", gap:4,
           }}>
-            <div style={{ fontSize:18, marginBottom:3 }}>{icon}</div>
+            <Icon size={20} color={active ? "#CF0F36" : "rgba(255,255,255,0.6)"} />
             {geoStatus==="loading" && label==="GPS" ? "..." : label}
           </button>
         ))}
@@ -785,7 +889,7 @@ export default function CacaoApp() {
 
       {/* Google Places search */}
       <div style={S.group}>
-        <label style={S.label}>🔍 Buscar estabelecimento</label>
+        <label style={S.label}>Buscar estabelecimento</label>
         <div style={{ position: "relative" }}>
           <input
             id="places-input"
@@ -795,29 +899,36 @@ export default function CacaoApp() {
             onChange={e => handlePlacesQuery(e.target.value)}
           />
           <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)",
-            fontSize:15, pointerEvents:"none" }}>🔍</div>
+            pointerEvents:"none", display:"flex", alignItems:"center" }}>
+            <IconSearch size={16} color="rgba(255,255,255,0.35)" />
+          </div>
           {placesLoading && (
             <div style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
-              color:"#00c8a0", fontSize:12 }}>...</div>
+              color:"#CF0F36", fontSize:12 }}>...</div>
           )}
         </div>
         {placesResults.length > 0 && (
-          <div style={{ background:"#002d3a", border:"1px solid rgba(0,200,160,0.25)",
-            borderRadius:8, marginTop:4, overflow:"hidden", boxShadow:"0 4px 20px rgba(0,0,0,0.3)" }}>
+          <div style={{ background:"#10263F", border:"1px solid rgba(207,15,54,0.25)",
+            borderRadius:4, marginTop:4, overflow:"hidden", boxShadow:"0 4px 20px rgba(0,0,0,0.5)" }}>
             <div style={{ padding:"6px 12px", fontSize:10, color:"rgba(255,255,255,0.3)",
-              fontFamily:"'Space Mono',monospace", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-              RESULTADOS DO GOOGLE PLACES
+              fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", textTransform:"uppercase",
+              borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+              Resultados do Google Places
             </div>
             {placesResults.map((place, i) => (
               <div key={i} onClick={() => handleSelectPlace(place)}
                 style={{ padding:"10px 12px", cursor:"pointer", display:"flex", gap:10,
                   borderBottom: i < placesResults.length-1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
-                onMouseOver={e => e.currentTarget.style.background="rgba(0,200,160,0.1)"}
+                onMouseOver={e => e.currentTarget.style.background="rgba(207,15,54,0.1)"}
                 onMouseOut={e => e.currentTarget.style.background="transparent"}>
-                <div style={{ fontSize:15, flexShrink:0 }}>📍</div>
+                <div style={{ flexShrink:0, display:"flex", alignItems:"center", paddingTop:2 }}>
+                  <IconPin size={16} color="rgba(255,255,255,0.4)" />
+                </div>
                 <div>
-                  <div style={{ color:"#e8f4f0", fontSize:13, fontWeight:600 }}>{place.displayName?.text}</div>
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:11, marginTop:2 }}>{place.formattedAddress}</div>
+                  <div style={{ color:"#ffffff", fontSize:13, fontWeight:600,
+                    fontFamily:"'Montserrat',sans-serif" }}>{place.displayName?.text}</div>
+                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:11, marginTop:2,
+                    fontFamily:"'Montserrat',sans-serif" }}>{place.formattedAddress}</div>
                 </div>
               </div>
             ))}
@@ -827,27 +938,28 @@ export default function CacaoApp() {
 
       {/* CEP */}
       <div style={S.group}>
-        <label style={S.label}>📮 CEP</label>
+        <label style={S.label}>CEP</label>
         <div style={{ position:"relative" }}>
           <input id="campo-cep" style={{ ...S.input, paddingRight:36 }}
             placeholder="00000-000" value={form.cep}
             onChange={e => handleCEP(e.target.value)} maxLength={9} />
           {cepLoading && (
             <div style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
-              color:"#00c8a0", fontSize:12 }}>...</div>
+              color:"#CF0F36", fontSize:12 }}>...</div>
           )}
         </div>
-        {cepError && <div style={{ color:"#ff6b6b", fontSize:12, marginTop:4 }}>{cepError}</div>}
+        {cepError && <div style={{ color:"#CF0F36", fontSize:12, marginTop:4,
+          fontFamily:"'Montserrat',sans-serif" }}>{cepError}</div>}
       </div>
 
       {/* Mapa */}
       {showMap && (
         <div style={{ marginBottom:14 }}>
-          <label style={S.label}>🗺️ Clique no mapa para marcar o local</label>
+          <label style={S.label}>Clique no mapa para marcar o local</label>
           <MapPicker lat={form.latitude} lng={form.longitude} onLocationChange={handleMapLocation} />
           {(form.fonteLocalizacao === "Mapa" || form.fonteLocalizacao === "GPS") && form.latitude && (
-            <div style={{ color:"#00c8a0", fontSize:12, marginTop:6 }}>
-              ✓ Pin: {form.latitude?.toFixed(5)}, {form.longitude?.toFixed(5)}
+            <div style={{ color:"#4B8399", fontSize:12, marginTop:6, fontFamily:"'Montserrat',sans-serif" }}>
+              Pin: {form.latitude?.toFixed(5)}, {form.longitude?.toFixed(5)}
             </div>
           )}
         </div>
@@ -855,37 +967,40 @@ export default function CacaoApp() {
 
       {/* Status de localização */}
       {locationLocked && (
-        <div style={{ background:"rgba(0,200,160,0.08)", border:"1px solid rgba(0,200,160,0.2)",
-          borderRadius:10, padding:"12px 14px", marginBottom:14 }}>
-          <div style={{ color:"#00c8a0", fontSize:11, fontFamily:"'Space Mono',monospace",
-            fontWeight:700, marginBottom:6 }}>
-            ✓ LOCALIZAÇÃO CONFIRMADA via {form.fonteLocalizacao}
+        <div style={{ background:"rgba(16,38,63,0.8)", border:"1px solid rgba(207,15,54,0.25)",
+          borderRadius:4, padding:"12px 14px", marginBottom:14 }}>
+          <div style={{ color:"#CF0F36", fontSize:11, fontFamily:"'Oswald',sans-serif",
+            letterSpacing:"0.1em", textTransform:"uppercase", fontWeight:400, marginBottom:6 }}>
+            Localização Confirmada via {form.fonteLocalizacao}
           </div>
-          <div style={{ color:"rgba(255,255,255,0.7)", fontSize:13 }}>
+          <div style={{ color:"rgba(255,255,255,0.7)", fontSize:13, fontFamily:"'Montserrat',sans-serif" }}>
             {[form.cidade, form.estado].filter(Boolean).join(" · ")}
           </div>
           {form.endereco && (
-            <div style={{ color:"rgba(255,255,255,0.45)", fontSize:12, marginTop:2 }}>{form.endereco}</div>
+            <div style={{ color:"rgba(255,255,255,0.45)", fontSize:12, marginTop:2,
+              fontFamily:"'Montserrat',sans-serif" }}>{form.endereco}</div>
           )}
           <button onClick={() => {
             setForm(f => ({ ...f, cidade:"", estado:"", endereco:"", latitude:null, longitude:null, fonteLocalizacao:"", cep:"" }));
             setGeoStatus("idle"); setShowMap(false); setPlacesQuery(""); setPlacesResults([]);
           }} style={{ marginTop:8, background:"transparent", border:"none",
-            color:"rgba(255,100,100,0.7)", fontSize:11, cursor:"pointer", padding:0 }}>
-            ✕ Limpar e escolher outro método
+            color:"rgba(207,15,54,0.7)", fontSize:11, cursor:"pointer", padding:0,
+            fontFamily:"'Oswald',sans-serif", letterSpacing:"0.08em", textTransform:"uppercase" }}>
+            Limpar e escolher outro método
           </button>
         </div>
       )}
 
-      {/* Nome do estabelecimento — sempre editable */}
+      {/* Nome do estabelecimento */}
       <div style={S.group}>
-        <label style={S.label}>Nome do estabelecimento *</label>
+        <label style={S.label}>Nome do Estabelecimento *</label>
         <input style={S.input}
           placeholder={form.fonteLocalizacao === "Google Places" ? form.nomeEstabelecimento : "Nome do local..."}
           value={form.nomeEstabelecimento}
           onChange={e => upd("nomeEstabelecimento", e.target.value)} />
         {!form.nomeEstabelecimento && (
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4 }}>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4,
+            fontFamily:"'Montserrat',sans-serif" }}>
             Preencha se GPS, Mapa ou CEP não trouxer o nome automaticamente.
           </div>
         )}
@@ -901,7 +1016,7 @@ export default function CacaoApp() {
         </select>
       </div>
 
-      {/* Endereço + Número — solo lectura si vino de fuente confiable */}
+      {/* Endereço + Número */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 100px", gap:10 }}>
         <div style={S.group}>
           <label style={S.label}>Endereço</label>
@@ -918,7 +1033,7 @@ export default function CacaoApp() {
         </div>
       </div>
 
-      {/* Cidade + Estado — siempre bloqueados */}
+      {/* Cidade + Estado */}
       {locationLocked && (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap:10 }}>
           <div style={S.group}>
@@ -937,15 +1052,17 @@ export default function CacaoApp() {
   // ── PRODUTO ──
   const StepProduto = (
     <div>
-      <h2 style={{ color:"#fff", fontSize:20, fontWeight:700, margin:"0 0 6px", fontFamily:"'Space Mono',monospace" }}>
-        Dados do produto
+      <h2 style={{ color:"#fff", fontSize:20, fontWeight:800, fontStyle:"italic",
+        margin:"0 0 6px", fontFamily:"'Montserrat',sans-serif", textTransform:"uppercase" }}>
+        Dados do Produto
       </h2>
-      <p style={{ color:"rgba(255,255,255,0.45)", fontSize:13, margin:"0 0 20px", lineHeight:1.6 }}>
+      <p style={{ color:"rgba(255,255,255,0.6)", fontSize:13, margin:"0 0 20px", lineHeight:1.6,
+        fontFamily:"'Montserrat',sans-serif" }}>
         Quanto mais detalhes, mais útil é o registro para a pesquisa.
       </p>
 
       <div style={S.group}>
-        <label style={S.label}>Forma de venda</label>
+        <label style={S.label}>Forma de Venda</label>
         <select style={{ ...S.input, appearance:"none" }}
           value={form.formaVenda} onChange={e => upd("formaVenda", e.target.value)}>
           <option value="">Selecione...</option>
@@ -960,13 +1077,13 @@ export default function CacaoApp() {
       </div>
 
       <div style={S.group}>
-        <label style={S.label}>Espécie declarada na etiqueta</label>
+        <label style={S.label}>Espécie Declarada na Etiqueta</label>
         <input style={S.input} placeholder='Ex: "cação", "cação-anjo", sem identificação...'
           value={form.especieDeclarada} onChange={e => upd("especieDeclarada", e.target.value)} />
       </div>
 
       <div style={S.group}>
-        <label style={S.label}>Origem declarada</label>
+        <label style={S.label}>Origem Declarada</label>
         <input style={S.input} placeholder="Ex: Brasil, importado, sem informação..."
           value={form.origem} onChange={e => upd("origem", e.target.value)} />
       </div>
@@ -983,23 +1100,28 @@ export default function CacaoApp() {
   // ── ENVIO ──
   const StepEnvio = (
     <div>
-      <h2 style={{ color:"#fff", fontSize:20, fontWeight:700, margin:"0 0 6px", fontFamily:"'Space Mono',monospace" }}>
-        Confirmar e enviar
+      <h2 style={{ color:"#fff", fontSize:20, fontWeight:800, fontStyle:"italic",
+        margin:"0 0 6px", fontFamily:"'Montserrat',sans-serif", textTransform:"uppercase" }}>
+        Confirmar e Enviar
       </h2>
-      <p style={{ color:"rgba(255,255,255,0.45)", fontSize:13, margin:"0 0 18px", lineHeight:1.6 }}>
+      <p style={{ color:"rgba(255,255,255,0.6)", fontSize:13, margin:"0 0 18px", lineHeight:1.6,
+        fontFamily:"'Montserrat',sans-serif" }}>
         Revise os dados antes de enviar.
       </p>
 
       {/* Resumo */}
-      <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:12, padding:14, marginBottom:18 }}>
+      <div style={{ background:"#10263F", borderRadius:4, padding:14, marginBottom:18,
+        border:"1px solid rgba(255,255,255,0.08)" }}>
         {foto && (
           <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10,
             paddingBottom:10, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-            <img src={foto} style={{ width:52, height:52, borderRadius:6, objectFit:"cover" }} />
+            <img src={foto} style={{ width:52, height:52, borderRadius:4, objectFit:"cover" }} />
             <div>
-              <div style={{ color:"#7fffd4", fontSize:11, fontWeight:700, fontFamily:"'Space Mono',monospace" }}>FOTO</div>
+              <div style={{ color:"rgba(255,255,255,0.6)", fontSize:11, fontWeight:400,
+                fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", textTransform:"uppercase" }}>Foto</div>
               {aiResult && (
-                <div style={{ fontSize:12, color: aiResult.ehCacao==="sim"?"#ff6b6b": aiResult.ehCacao==="talvez"?"#ffa502":"#2ed573" }}>
+                <div style={{ fontSize:12, fontFamily:"'Montserrat',sans-serif",
+                  color: aiResult.ehCacao==="sim"?"#CF0F36": aiResult.ehCacao==="talvez"?"#600E0A":"#4B8399" }}>
                   IA: {aiResult.ehCacao==="sim"?"Provável tubarão": aiResult.ehCacao==="talvez"?"Possível tubarão": aiResult.ehCacao==="nao"?"Não identificado":"Inconclusivo"}
                 </div>
               )}
@@ -1014,20 +1136,22 @@ export default function CacaoApp() {
           ["Obs.", form.observacoes],
         ].filter(([,v]) => v).map(([k,v]) => (
           <div key={k} style={{ marginBottom:7 }}>
-            <span style={{ color:"#7fffd4", fontFamily:"'Space Mono',monospace", fontSize:11, fontWeight:700 }}>{k}: </span>
-            <span style={{ color:"rgba(255,255,255,0.65)", fontSize:13 }}>{v}</span>
+            <span style={{ color:"rgba(255,255,255,0.6)", fontFamily:"'Oswald',sans-serif",
+              fontSize:11, fontWeight:400, letterSpacing:"0.1em", textTransform:"uppercase" }}>{k}: </span>
+            <span style={{ color:"rgba(255,255,255,0.65)", fontSize:13,
+              fontFamily:"'Montserrat',sans-serif" }}>{v}</span>
           </div>
         ))}
       </div>
 
       {/* Identificação opcional */}
       <div style={S.group}>
-        <label style={S.label}>Seu nome (opcional)</label>
+        <label style={S.label}>Seu Nome (opcional)</label>
         <input style={S.input} placeholder="Anônimo por padrão"
           value={form.nome} onChange={e => upd("nome", e.target.value)} />
       </div>
       <div style={S.group}>
-        <label style={S.label}>Seu e-mail (opcional)</label>
+        <label style={S.label}>Seu E-mail (opcional)</label>
         <input style={S.input} type="email" placeholder="Para receber confirmação"
           value={form.email} onChange={e => upd("email", e.target.value)} />
       </div>
@@ -1036,17 +1160,19 @@ export default function CacaoApp() {
       <label style={{ display:"flex", gap:10, alignItems:"flex-start", cursor:"pointer", marginBottom:20 }}>
         <input type="checkbox" checked={form.concordo}
           onChange={e => upd("concordo", e.target.checked)}
-          style={{ marginTop:2, accentColor:"#00c8a0" }} />
-        <span style={{ fontSize:12, color:"rgba(255,255,255,0.45)", lineHeight:1.6 }}>
+          style={{ marginTop:2, accentColor:"#CF0F36" }} />
+        <span style={{ fontSize:12, color:"rgba(255,255,255,0.45)", lineHeight:1.6,
+          fontFamily:"'Montserrat',sans-serif" }}>
           Confirmo que as informações são verdadeiras e concordo que sejam usadas para fins de pesquisa e conscientização ambiental.
         </span>
       </label>
 
       {/* Erro */}
       {submitError && (
-        <div style={{ color:"#ff6b6b", background:"rgba(255,100,100,0.08)", borderRadius:8,
-          padding:"10px 12px", marginBottom:12, fontSize:13 }}>
-          ⚠ {submitError}
+        <div style={{ color:"#CF0F36", background:"rgba(207,15,54,0.08)", borderRadius:4,
+          padding:"10px 12px", marginBottom:12, fontSize:13, fontFamily:"'Montserrat',sans-serif",
+          border:"1px solid rgba(207,15,54,0.2)" }}>
+          {submitError}
         </div>
       )}
 
@@ -1058,22 +1184,19 @@ export default function CacaoApp() {
           style={{
             ...S.btnPrimary,
             background: form.concordo && form.nomeEstabelecimento && form.cidade
-              ? "linear-gradient(135deg,#00c8a0,#00a080)"
+              ? "#CF0F36"
               : "rgba(255,255,255,0.06)",
-            color: form.concordo && form.nomeEstabelecimento && form.cidade ? "#001a2c" : "rgba(255,255,255,0.25)",
+            color: form.concordo && form.nomeEstabelecimento && form.cidade ? "#fff" : "rgba(255,255,255,0.25)",
             cursor: form.concordo ? "pointer" : "not-allowed",
           }}
         >
-          {submitting ? (fotoBase64 ? "Enviando foto e salvando..." : "Salvando...") : "💾 Salvar registro"}
+          {submitting ? (fotoBase64 ? "Enviando..." : "Salvando...") : "Salvar Registro"}
         </button>
 
-        <a href="https://seashepherd.org.br/cacao-e-tubarao/" target="_blank" rel="noopener noreferrer"
-          style={{ display:"block", textAlign:"center", textDecoration:"none", ...S.btnSecondary, padding:"12px" }}>
-          🐋 Também reportar à Sea Shepherd →
-        </a>
       </div>
 
-      <div style={{ marginTop:12, fontSize:11, color:"rgba(255,255,255,0.2)", textAlign:"center", lineHeight:1.7 }}>
+      <div style={{ marginTop:12, fontSize:11, color:"rgba(255,255,255,0.2)", textAlign:"center",
+        lineHeight:1.7, fontFamily:"'Montserrat',sans-serif" }}>
         Dados salvos no Airtable · Obrigado por ajudar a proteger os tubarões.
       </div>
     </div>
@@ -1081,35 +1204,37 @@ export default function CacaoApp() {
 
   // ── SUCCESS ──
   if (submitted) return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#001a2c,#002d3a,#001a2c)",
+    <div style={{ minHeight:"100vh", background:"#000000",
       display:"flex", alignItems:"center", justifyContent:"center", padding:20,
-      fontFamily:"'DM Sans',sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+      fontFamily:"'Montserrat',sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,800;1,800&family=Oswald:wght@400;700&display=swap" rel="stylesheet"/>
       <div style={{ textAlign:"center", maxWidth:380 }}>
-        <div style={{ fontSize:64, marginBottom:20 }}>🦈</div>
-        <h1 style={{ color:"#00c8a0", fontFamily:"'Space Mono',monospace", fontSize:22, marginBottom:8 }}>
-          Registro salvo!
+        <img src="/shark-logo.JPG" alt="Cação é Tubarão"
+          style={{ width:80, height:80, objectFit:"cover", borderRadius:"50%", marginBottom:20 }} />
+        <h1 style={{ color:"#CF0F36", fontFamily:"'Montserrat',sans-serif", fontSize:22,
+          fontWeight:800, fontStyle:"italic", textTransform:"uppercase", marginBottom:8 }}>
+          Registro Salvo!
         </h1>
-        <p style={{ color:"rgba(255,255,255,0.55)", lineHeight:1.7, marginBottom:28 }}>
+        <p style={{ color:"rgba(255,255,255,0.6)", lineHeight:1.7, marginBottom:28,
+          fontFamily:"'Montserrat',sans-serif" }}>
           Seu avistamento foi salvo no banco de dados. Cada registro nos ajuda a mapear o comércio de tubarões no Brasil.
         </p>
-        <div style={{ background:"rgba(0,200,160,0.07)", border:"1px solid rgba(0,200,160,0.2)",
-          borderRadius:12, padding:"16px 20px", marginBottom:24, textAlign:"left" }}>
-          <div style={{ color:"#7fffd4", fontFamily:"'Space Mono',monospace", fontSize:11, fontWeight:700, marginBottom:8 }}>
-            PRÓXIMOS PASSOS
+        <div style={{ background:"#10263F", border:"1px solid rgba(255,255,255,0.08)",
+          borderRadius:4, padding:"16px 20px", marginBottom:24, textAlign:"left" }}>
+          <div style={{ color:"rgba(255,255,255,0.6)", fontFamily:"'Oswald',sans-serif",
+            fontSize:11, fontWeight:400, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:8 }}>
+            Próximos Passos
           </div>
-          <div style={{ color:"rgba(255,255,255,0.6)", fontSize:13, lineHeight:1.9 }}>
-            → <a href="https://seashepherd.org.br/cacao-e-tubarao/" target="_blank" style={{ color:"#00c8a0" }}>
-              Reportar à Sea Shepherd Brasil
-            </a><br/>
-            → Compartilhe a campanha <strong>#CacaoÉTubarão</strong><br/>
-            → <a href="https://seashepherd.org.br/peticao-pelos-tubaroes/" target="_blank" style={{ color:"#00c8a0" }}>
-              Assinar a petição
-            </a>
+          <div style={{ color:"rgba(255,255,255,0.6)", fontSize:13, lineHeight:1.9,
+            fontFamily:"'Montserrat',sans-serif" }}>
+            → Compartilhe a campanha <strong style={{ color:"#CF0F36" }}>#CacaoÉTubarão</strong><br/>
+            → Compartilhe a campanha <a href="https://seashepherd.org.br/defensores-dos-tubaroes/" target="_blank" style={{ color:"#4B8399" }}><strong style={{ color:"#CF0F36" }}>#DefensoresDosTubaroes</strong></a><br/>
+            → <a href="https://seashepherd.org.br/peticao-pelos-tubaroes/" target="_blank"
+              style={{ color:"#4B8399" }}>Assinar a petição</a>
           </div>
         </div>
         <button onClick={resetApp} style={{ ...S.btnGhost }}>
-          Registrar outro avistamento
+          Registrar Outro Avistamento
         </button>
       </div>
     </div>
@@ -1119,41 +1244,45 @@ export default function CacaoApp() {
 
   // ── RENDER ──
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#001a2c 0%,#002d3a 60%,#001a2c 100%)",
-      fontFamily:"'DM Sans',sans-serif", color:"#e8f4f0" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <div style={{ minHeight:"100vh", background:"#000000",
+      fontFamily:"'Montserrat',sans-serif", color:"#ffffff" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,800;1,800&family=Oswald:wght@400;700&display=swap" rel="stylesheet"/>
       <style>{`
         *{box-sizing:border-box}
-        input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.22)}
-        input:focus,textarea:focus,select:focus{border-color:rgba(0,200,160,0.5)!important}
-        select option{background:#002d3a}
+        input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.22);font-family:'Montserrat',sans-serif}
+        input:focus,textarea:focus,select:focus{border-color:rgba(207,15,54,0.5)!important;outline:none}
+        select option{background:#10263F;color:#fff}
         .leaflet-control-attribution{display:none}
       `}</style>
 
       {/* Header */}
-      <div style={{ background:"rgba(0,0,0,0.3)", backdropFilter:"blur(12px)",
-        borderBottom:"1px solid rgba(0,200,160,0.12)", padding:"12px 20px",
-        display:"flex", alignItems:"center", gap:10, position:"sticky", top:0, zIndex:100 }}>
-        <SharkIcon size={30}/>
+      <div style={{ background:"#000000", borderBottom:"1px solid rgba(207,15,54,0.2)",
+        padding:"12px 20px", display:"flex", alignItems:"center", gap:12,
+        position:"sticky", top:0, zIndex:100 }}>
+        <img src="/shark-logo.JPG" alt="Cação é Tubarão"
+          style={{ width:36, height:36, objectFit:"cover", borderRadius:"50%", flexShrink:0 }} />
         <div>
-          <div style={{ fontFamily:"'Space Mono',monospace", fontWeight:700, fontSize:12,
-            color:"#00c8a0", letterSpacing:"0.05em" }}>CAÇÃO É TUBARÃO</div>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", letterSpacing:"0.08em" }}>
-            Mapeamento colaborativo · Brasil
+          <div style={{ fontFamily:"'Montserrat',sans-serif", fontWeight:800, fontStyle:"italic",
+            fontSize:13, color:"#ffffff", letterSpacing:"0.04em", textTransform:"uppercase",
+            lineHeight:1.1 }}>Cação é Tubarão</div>
+          <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:9, color:"rgba(255,255,255,0.4)",
+            letterSpacing:"0.12em", textTransform:"uppercase", marginTop:1 }}>
+            Mapeamento Colaborativo · Brasil
           </div>
         </div>
         <button
           onClick={() => navigate("/mapa")}
           style={{
             marginLeft: "auto",
-            padding: "7px 12px", borderRadius: 8,
-            background: "rgba(0,200,160,0.12)",
-            border: "1px solid rgba(0,200,160,0.3)",
-            color: "#00c8a0", fontWeight: 700, fontSize: 11,
-            cursor: "pointer", fontFamily: "'Space Mono',monospace",
+            padding: "7px 14px", borderRadius: 4,
+            background: "rgba(207,15,54,0.12)",
+            border: "1px solid rgba(207,15,54,0.35)",
+            color: "#CF0F36", fontWeight: 400, fontSize: 11,
+            cursor: "pointer", fontFamily: "'Oswald',sans-serif",
+            letterSpacing: "0.1em", textTransform: "uppercase",
           }}
         >
-          🗺️ Mapa
+          Mapa
         </button>
       </div>
 
@@ -1163,9 +1292,9 @@ export default function CacaoApp() {
       </div>
       <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 14px 0", marginBottom:2 }}>
         {STEPS.map(s => (
-          <div key={s} style={{ fontSize:10, fontFamily:"'Space Mono',monospace",
-            textTransform:"uppercase", letterSpacing:"0.06em",
-            color: s===step ? "#7fffd4" : "rgba(255,255,255,0.22)" }}>
+          <div key={s} style={{ fontSize:10, fontFamily:"'Oswald',sans-serif",
+            textTransform:"uppercase", letterSpacing:"0.1em",
+            color: s===step ? "#CF0F36" : "rgba(255,255,255,0.22)" }}>
             {STEP_LABELS[s]}
           </div>
         ))}
@@ -1179,13 +1308,14 @@ export default function CacaoApp() {
       {/* Bottom Nav */}
       <div style={{ position:"fixed", bottom:0, left:0, right:0,
         padding:"12px 20px 24px",
-        background:"linear-gradient(to top,#001a2c 70%,transparent)",
+        background:"linear-gradient(to top,#000000 60%,transparent)",
         display:"flex", gap:10 }}>
         {idx > 0 && (
           <button
             onClick={() => setStep(STEPS[idx-1])}
-            style={{ ...S.btnGhost, flexShrink:0 }}>
-            ← Voltar
+            style={{ ...S.btnGhost, flexShrink:0, display:"flex", alignItems:"center", gap:6 }}>
+            <IconArrowLeft size={16} color="rgba(255,255,255,0.55)" />
+            Voltar
           </button>
         )}
         {step !== "envio" && (
@@ -1194,11 +1324,11 @@ export default function CacaoApp() {
             disabled={!canNext[step]}
             style={{
               ...S.btnPrimary, flex:1,
-              background: canNext[step] ? "linear-gradient(135deg,#00c8a0,#00a080)" : "rgba(255,255,255,0.06)",
-              color: canNext[step] ? "#001a2c" : "rgba(255,255,255,0.2)",
+              background: canNext[step] ? "#CF0F36" : "rgba(255,255,255,0.06)",
+              color: canNext[step] ? "#ffffff" : "rgba(255,255,255,0.2)",
               cursor: canNext[step] ? "pointer" : "not-allowed",
             }}>
-            Continuar →
+            Continuar
           </button>
         )}
       </div>
