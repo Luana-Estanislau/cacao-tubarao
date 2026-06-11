@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cacao e Tubarao</string>
+    <string name="title_activity_main">Cacao e Tubarao</string>
+    <string name="package_name">br.luanaestanislau.cacaotubarao</string>
+    <string name="custom_url_scheme">br.luanaestanislau.cacaotubarao</string>
+</resources>

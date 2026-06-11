@@ -147,6 +147,43 @@ async function reverseGeocode(lat, lng) {
   return data.address || {};
 }
 
+// ─── Resolve CEP from lat/lng via Google Geocoding ────────────
+async function resolveCepFromCoords(lat, lng) {
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_PLACES_KEY}`
+    );
+    const data = await res.json();
+    for (const result of data.results || []) {
+      const comp = result.address_components?.find(c => c.types.includes("postal_code"));
+      if (comp) return comp.long_name.replace(/\D/g, "");
+    }
+  } catch {}
+  return null;
+}
+
+// ─── Airtable field metadata → choices ───────────────────────
+async function fetchFieldChoices() {
+  try {
+    const res = await fetch(
+      `https://api.airtable.com/v0/meta/bases/${AIRTABLE_BASE_ID}/tables`,
+      { headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` } }
+    );
+    const data = await res.json();
+    const table = data.tables?.find(t => t.name === AIRTABLE_TABLE);
+    if (!table) return {};
+    const choices = {};
+    for (const field of table.fields || []) {
+      if (field.options?.choices) {
+        choices[field.name] = field.options.choices.map(c => c.name);
+      }
+    }
+    return choices;
+  } catch {
+    return {};
+  }
+}
+
 // ─── Claude image analysis ────────────────────────────────────
 async function analyzeSharkImage(base64Image) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -459,12 +496,18 @@ const S = {
 export default function CacaoApp() {
   const navigate = useNavigate();
   const [step, setStep]           = useState("foto");
-  const [foto, setFoto]           = useState(null);
-  const [fotoBase64, setFotoBase64] = useState(null);
+  const [slots, setSlots]         = useState([
+    { objectUrl: null, base64: null, status: "idle" },
+    { objectUrl: null, base64: null, status: "idle" },
+    { objectUrl: null, base64: null, status: "idle" },
+  ]);
   const [aiResult, setAiResult]   = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError]     = useState(null);
   const fileRef = useRef();
+  const activeSlotRef = useRef(0);
+  const [fieldChoices, setFieldChoices] = useState({});
+  const [choicesLoading, setChoicesLoading] = useState(true);
 
   const [form, setForm] = useState({
     nomeEstabelecimento:"", tipoEstabelecimento:"",
@@ -490,44 +533,63 @@ export default function CacaoApp() {
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  // ── Foto ──
-  function handleFotoUpload(file) {
+  useEffect(() => {
+    fetchFieldChoices().then(c => { setFieldChoices(c); setChoicesLoading(false); });
+  }, []);
+
+  // ── helpers ──
+  async function applyCepToForm(cepClean) {
+    if (!cepClean || cepClean.length !== 8) return;
+    try {
+      const d = await fetchCEP(cepClean);
+      setForm(f => ({
+        ...f,
+        cep: cepClean,
+        endereco: d.logradouro || f.endereco,
+        cidade:   d.localidade  || f.cidade,
+        estado:   d.uf          || f.estado,
+      }));
+    } catch {}
+  }
+
+  // ── Foto (multi-slot) ──
+  function handleFileSelect(file) {
     if (!file) return;
-    setFoto(URL.createObjectURL(file));
-    setAiResult(null); setAiError(null);
+    const slotIdx = activeSlotRef.current;
+    const objectUrl = URL.createObjectURL(file);
+    setSlots(s => s.map((sl, i) => i === slotIdx ? { ...sl, objectUrl, base64: null, status: "loading" } : sl));
 
-    exifr.parse(file, { gps: true, tiff: true }).then(exif => {
-      if (!exif) return;
-      const updates = {};
-
-      if (exif.latitude && exif.longitude && !form.latitude) {
-        updates.latitude = exif.latitude;
-        updates.longitude = exif.longitude;
-        updates.fonteLocalizacao = "GPS (foto)";
-        setShowMap(true);
-        reverseGeocode(exif.latitude, exif.longitude).then(addr => {
-          setForm(f => ({
-            ...f,
-            latitude: exif.latitude,
-            longitude: exif.longitude,
-            endereco: addr.road ? `${addr.road}${addr.house_number ? ", "+addr.house_number : ""}` : f.endereco,
-            cidade: addr.city || addr.town || addr.village || f.cidade,
-            estado: normalizeEstado(addr.state) || f.estado,
-            fonteLocalizacao: "GPS (foto)",
-          }));
-        });
-      }
-
-      if (exif.DateTimeOriginal) {
-        const iso = exif.DateTimeOriginal.toISOString();
-        updates.dataFoto = iso;
-        updates.dataObservacao = isoToDDMMYYYY(iso);
-      }
-
-      if (Object.keys(updates).length > 0) {
-        setForm(f => ({ ...f, ...updates }));
-      }
-    }).catch(() => {});
+    if (slotIdx === 0) {
+      setAiResult(null); setAiError(null);
+      exifr.parse(file, { gps: true, tiff: true }).then(exif => {
+        if (!exif) return;
+        const updates = {};
+        if (exif.latitude && exif.longitude && !form.latitude) {
+          updates.latitude = exif.latitude;
+          updates.longitude = exif.longitude;
+          updates.fonteLocalizacao = "GPS (foto)";
+          setShowMap(true);
+          reverseGeocode(exif.latitude, exif.longitude).then(addr => {
+            setForm(f => ({
+              ...f,
+              latitude: exif.latitude,
+              longitude: exif.longitude,
+              endereco: addr.road ? `${addr.road}${addr.house_number ? ", "+addr.house_number : ""}` : f.endereco,
+              cidade: addr.city || addr.town || addr.village || f.cidade,
+              estado: normalizeEstado(addr.state) || f.estado,
+              fonteLocalizacao: "GPS (foto)",
+            }));
+            resolveCepFromCoords(exif.latitude, exif.longitude).then(cep => { if (cep) applyCepToForm(cep); });
+          });
+        }
+        if (exif.DateTimeOriginal) {
+          const iso = exif.DateTimeOriginal.toISOString();
+          updates.dataFoto = iso;
+          updates.dataObservacao = isoToDDMMYYYY(iso);
+        }
+        if (Object.keys(updates).length > 0) setForm(f => ({ ...f, ...updates }));
+      }).catch(() => {});
+    }
 
     const reader = new FileReader();
     reader.onload = e => {
@@ -538,7 +600,8 @@ export default function CacaoApp() {
         canvas.height = img.height;
         canvas.getContext("2d").drawImage(img, 0, 0);
         const jpeg = canvas.toDataURL("image/jpeg", 0.92);
-        setFotoBase64(jpeg.split(",")[1]);
+        const b64 = jpeg.split(",")[1];
+        setSlots(s => s.map((sl, i) => i === slotIdx ? { ...sl, base64: b64, status: "ready" } : sl));
       };
       img.src = e.target.result;
     };
@@ -546,9 +609,10 @@ export default function CacaoApp() {
   }
 
   async function handleAnalyze() {
-    if (!fotoBase64) return;
+    const b64 = slots[0].base64;
+    if (!b64) return;
     setAiLoading(true); setAiError(null);
-    try { setAiResult(await analyzeSharkImage(fotoBase64)); }
+    try { setAiResult(await analyzeSharkImage(b64)); }
     catch { setAiError("Não foi possível analisar. Continue mesmo assim."); }
     finally { setAiLoading(false); }
   }
@@ -588,6 +652,7 @@ export default function CacaoApp() {
             estado:   normalizeEstado(addr.state) || f.estado,
             fonteLocalizacao: "GPS",
           }));
+          resolveCepFromCoords(latitude, longitude).then(cep => { if (cep) applyCepToForm(cep); });
           setGeoStatus("ok");
           setShowMap(true);
         } catch { setGeoStatus("error"); }
@@ -621,6 +686,8 @@ export default function CacaoApp() {
     const cidade = cityMatch ? cityMatch[1].trim() : "";
     const streetParts = addr.split(",");
     const endereco = streetParts.slice(0, 2).join(",").trim();
+    const lat = place.location?.latitude;
+    const lng = place.location?.longitude;
 
     setForm(f => ({
       ...f,
@@ -628,14 +695,22 @@ export default function CacaoApp() {
       endereco: endereco,
       cidade: cidade,
       estado: normalizeEstado(estado) || estado,
-      latitude: place.location?.latitude || f.latitude,
-      longitude: place.location?.longitude || f.longitude,
+      latitude: lat || f.latitude,
+      longitude: lng || f.longitude,
       googlePlaceId: place.id || f.googlePlaceId,
       fonteLocalizacao: "Google Places",
     }));
     setPlacesQuery(place.displayName?.text || "");
     setPlacesResults([]);
     setShowMap(true);
+
+    // Auto-fill CEP: check formattedAddress first, then Geocoding
+    const cepInAddr = addr.match(/\b(\d{5})-?(\d{3})\b/);
+    if (cepInAddr) {
+      applyCepToForm(cepInAddr[1] + cepInAddr[2]);
+    } else if (lat && lng) {
+      resolveCepFromCoords(lat, lng).then(cep => { if (cep) applyCepToForm(cep); });
+    }
   }
 
   const handleMapLocation = useCallback(async ({ lat, lng, addr }) => {
@@ -647,19 +722,25 @@ export default function CacaoApp() {
       estado:   normalizeEstado(addr.state) || f.estado,
       fonteLocalizacao: "Mapa",
     }));
+    resolveCepFromCoords(lat, lng).then(cep => { if (cep) applyCepToForm(cep); });
   }, []);
 
   // ── Submit ──
   async function handleSubmit() {
     setSubmitting(true); setSubmitError(null);
     try {
-      let fotoUrl = null;
-      if (fotoBase64) {
+      // Upload all non-empty slots
+      const fotoUrls = [null, null, null];
+      for (let i = 0; i < 3; i++) {
+        const b64 = slots[i].base64;
+        if (!b64) continue;
+        setSlots(s => s.map((sl, j) => j === i ? { ...sl, status: "uploading" } : sl));
         try {
-          const compressed = await compressImage(fotoBase64);
-          fotoUrl = await uploadToCloudinary(compressed);
-        } catch (e) {
-          console.warn("Erro ao subir foto:", e);
+          const compressed = await compressImage(b64);
+          fotoUrls[i] = await uploadToCloudinary(compressed);
+          setSlots(s => s.map((sl, j) => j === i ? { ...sl, status: "done" } : sl));
+        } catch {
+          setSlots(s => s.map((sl, j) => j === i ? { ...sl, status: "ready" } : sl));
         }
       }
 
@@ -684,7 +765,9 @@ export default function CacaoApp() {
         "Email Reportante":   form.email,
         "Data Registro":      new Date().toISOString(),
         "Data Observacao":    form.dataObservacao ? (ddmmyyyyToISO(form.dataObservacao) || undefined) : undefined,
-        ...(fotoUrl && { "Foto": [{ url: fotoUrl }] }),
+        ...(fotoUrls[0] && { "Foto URL":   fotoUrls[0] }),
+        ...(fotoUrls[1] && { "Foto URL 2": fotoUrls[1] }),
+        ...(fotoUrls[2] && { "Foto URL 3": fotoUrls[2] }),
       };
       Object.keys(fields).forEach(k => fields[k] === undefined && delete fields[k]);
       await saveToAirtable(fields);
@@ -697,7 +780,12 @@ export default function CacaoApp() {
   }
 
   function resetApp() {
-    setStep("foto"); setFoto(null); setFotoBase64(null);
+    setStep("foto");
+    setSlots([
+      { objectUrl: null, base64: null, status: "idle" },
+      { objectUrl: null, base64: null, status: "idle" },
+      { objectUrl: null, base64: null, status: "idle" },
+    ]);
     setAiResult(null); setAiError(null); setSubmitted(false);
     setSubmitError(null); setShowMap(false); setGeoStatus("idle");
     setForm({
@@ -724,6 +812,58 @@ export default function CacaoApp() {
   // STEP RENDERS
   // ════════════════════════════════════════════════════════════
 
+  const slot0 = slots[0];
+
+  const SlotCard = ({ idx: si }) => {
+    const sl = slots[si];
+    const isFirst = si === 0;
+    const isEmpty = !sl.objectUrl;
+    return (
+      <div style={{ position:"relative", borderRadius:4, overflow:"hidden",
+        border: isEmpty ? "2px dashed rgba(207,15,54,0.35)" : "1px solid rgba(207,15,54,0.3)",
+        background: isEmpty ? "rgba(207,15,54,0.03)" : "transparent",
+        aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center",
+        cursor: isEmpty ? "pointer" : "default",
+      }}
+        onClick={() => { if (isEmpty) { activeSlotRef.current = si; fileRef.current.click(); } }}
+      >
+        {isEmpty ? (
+          <div style={{ textAlign:"center", padding:8 }}>
+            <IconCamera size={isFirst ? 32 : 22} color="rgba(207,15,54,0.7)" />
+            <div style={{ color:"rgba(207,15,54,0.8)", fontFamily:"'Oswald',sans-serif",
+              fontSize:10, letterSpacing:"0.08em", textTransform:"uppercase", marginTop:4 }}>
+              {isFirst ? "Foto 1 *" : `Foto ${si+1}`}
+            </div>
+          </div>
+        ) : (
+          <>
+            <img src={sl.objectUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+            {(sl.status === "uploading" || sl.status === "loading") && (
+              <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.55)",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                color:"#CF0F36", fontFamily:"'Oswald',sans-serif", fontSize:11,
+                letterSpacing:"0.08em", textTransform:"uppercase" }}>
+                {sl.status === "uploading" ? "Enviando..." : "..."}
+              </div>
+            )}
+            {sl.status === "done" && (
+              <div style={{ position:"absolute", bottom:4, left:4, background:"rgba(0,0,0,0.6)",
+                color:"#4B8399", fontSize:10, padding:"2px 6px", borderRadius:2,
+                fontFamily:"'Oswald',sans-serif", letterSpacing:"0.06em" }}>✔</div>
+            )}
+            <button
+              onClick={e => { e.stopPropagation(); setSlots(s => s.map((x, j) => j===si ? { objectUrl:null, base64:null, status:"idle" } : x)); if (si===0) { setAiResult(null); } }}
+              style={{ position:"absolute", top:4, right:4, background:"rgba(0,0,0,0.7)",
+                border:"none", borderRadius:"50%", width:22, height:22, cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+              <IconX size={11} color="#ffffff" />
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
+
   const StepFoto = (
     <div>
       <h2 style={{ color:"#fff", fontSize:20, fontWeight:800, fontStyle:"italic",
@@ -735,40 +875,16 @@ export default function CacaoApp() {
         Tire uma foto da etiqueta, produto ou display de venda. A IA vai tentar identificar espécie, preço e origem na etiqueta ou placa.
       </p>
 
-      {!foto ? (
-        <div
-          onClick={() => fileRef.current.click()}
-          style={{
-            border:"2px dashed rgba(207,15,54,0.4)", borderRadius:4,
-            padding:"44px 20px", textAlign:"center", cursor:"pointer",
-            background:"rgba(207,15,54,0.03)", transition:"border-color 0.2s",
-          }}
-          onMouseOver={e => e.currentTarget.style.borderColor="#CF0F36"}
-          onMouseOut={e  => e.currentTarget.style.borderColor="rgba(207,15,54,0.4)"}
-        >
-          <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
-            <IconCamera size={44} color="rgba(207,15,54,0.8)" />
-          </div>
-          <div style={{ color:"#CF0F36", fontFamily:"'Oswald',sans-serif",
-            letterSpacing:"0.1em", textTransform:"uppercase", fontSize:13 }}>
-            Toque para adicionar foto
-          </div>
-          <div style={{ color:"rgba(255,255,255,0.3)", fontSize:12, marginTop:5,
-            fontFamily:"'Montserrat',sans-serif" }}>Câmera ou galeria</div>
+      <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:8, marginBottom:12 }}>
+        <SlotCard idx={0} />
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <SlotCard idx={1} />
+          <SlotCard idx={2} />
         </div>
-      ) : (
-        <div>
-          <div style={{ position:"relative", borderRadius:4, overflow:"hidden", marginBottom:10 }}>
-            <img src={foto} alt="Produto" style={{ width:"100%", maxHeight:240, objectFit:"cover", display:"block" }} />
-            <button
-              onClick={() => { setFoto(null); setFotoBase64(null); setAiResult(null); }}
-              style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.7)",
-                border:"none", borderRadius:"50%", width:28, height:28, cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-              <IconX size={14} color="#ffffff" />
-            </button>
-          </div>
+      </div>
 
+      {slot0.objectUrl && (
+        <div>
           {!aiResult && !aiLoading && (
             <button onClick={handleAnalyze} style={{ ...S.btnSecondary, marginBottom:8 }}>
               Analisar com IA
@@ -794,18 +910,11 @@ export default function CacaoApp() {
               Localização extraída da foto automaticamente
             </div>
           )}
-          <button onClick={() => fileRef.current.click()}
-            style={{ width:"100%", marginTop:8, padding:9, borderRadius:4,
-              background:"transparent", border:"1px solid rgba(255,255,255,0.1)",
-              color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:12,
-              fontFamily:"'Oswald',sans-serif", letterSpacing:"0.08em", textTransform:"uppercase" }}>
-            Trocar Foto
-          </button>
         </div>
       )}
 
       <input ref={fileRef} type="file" accept="image/*"
-        style={{ display:"none" }} onChange={e => handleFotoUpload(e.target.files[0])} />
+        style={{ display:"none" }} onChange={e => { handleFileSelect(e.target.files[0]); e.target.value=""; }} />
 
       {/* Campo de data da observação */}
       <div style={{ ...S.group, marginTop:16 }}>
@@ -1078,14 +1187,32 @@ export default function CacaoApp() {
 
       <div style={S.group}>
         <label style={S.label}>Espécie Declarada na Etiqueta</label>
-        <input style={S.input} placeholder='Ex: "cação", "cação-anjo", sem identificação...'
-          value={form.especieDeclarada} onChange={e => upd("especieDeclarada", e.target.value)} />
+        {fieldChoices["Especie Declarada"]?.length > 0 ? (
+          <select style={{ ...S.input, appearance:"none" }}
+            value={form.especieDeclarada} onChange={e => upd("especieDeclarada", e.target.value)}>
+            <option value="">Selecione...</option>
+            {fieldChoices["Especie Declarada"].map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        ) : (
+          <input style={S.input}
+            placeholder={choicesLoading ? "Carregando opções..." : 'Ex: "cação", "cação-anjo", sem identificação...'}
+            value={form.especieDeclarada} onChange={e => upd("especieDeclarada", e.target.value)} />
+        )}
       </div>
 
       <div style={S.group}>
         <label style={S.label}>Origem Declarada</label>
-        <input style={S.input} placeholder="Ex: Brasil, importado, sem informação..."
-          value={form.origem} onChange={e => upd("origem", e.target.value)} />
+        {fieldChoices["Origem"]?.length > 0 ? (
+          <select style={{ ...S.input, appearance:"none" }}
+            value={form.origem} onChange={e => upd("origem", e.target.value)}>
+            <option value="">Selecione...</option>
+            {fieldChoices["Origem"].map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        ) : (
+          <input style={S.input}
+            placeholder={choicesLoading ? "Carregando opções..." : "Ex: Brasil, importado, sem informação..."}
+            value={form.origem} onChange={e => upd("origem", e.target.value)} />
+        )}
       </div>
 
       <div style={S.group}>
@@ -1112,10 +1239,10 @@ export default function CacaoApp() {
       {/* Resumo */}
       <div style={{ background:"#10263F", borderRadius:4, padding:14, marginBottom:18,
         border:"1px solid rgba(255,255,255,0.08)" }}>
-        {foto && (
+        {slot0.objectUrl && (
           <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10,
             paddingBottom:10, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-            <img src={foto} style={{ width:52, height:52, borderRadius:4, objectFit:"cover" }} />
+            <img src={slot0.objectUrl} style={{ width:52, height:52, borderRadius:4, objectFit:"cover" }} />
             <div>
               <div style={{ color:"rgba(255,255,255,0.6)", fontSize:11, fontWeight:400,
                 fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", textTransform:"uppercase" }}>Foto</div>
@@ -1190,7 +1317,7 @@ export default function CacaoApp() {
             cursor: form.concordo ? "pointer" : "not-allowed",
           }}
         >
-          {submitting ? (fotoBase64 ? "Enviando..." : "Salvando...") : "Salvar Registro"}
+          {submitting ? (slots.some(s => s.base64) ? "Enviando..." : "Salvando...") : "Salvar Registro"}
         </button>
 
       </div>
