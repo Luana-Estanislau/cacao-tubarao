@@ -21,7 +21,7 @@ async function fetchRegistros() {
     url.searchParams.append("fields[]", "Latitude");
     url.searchParams.append("fields[]", "Longitude");
     url.searchParams.append("fields[]", "Analise IA");
-    url.searchParams.append("fields[]", "Data e Hora");
+    url.searchParams.append("fields[]", "Data Registro");
     url.searchParams.append("fields[]", "Forma de Venda");
     url.searchParams.append("fields[]", "Preco por kg");
     if (offset) url.searchParams.set("offset", offset);
@@ -135,7 +135,15 @@ export default function MapaPublico() {
 
   useEffect(() => {
     fetchRegistros()
-      .then(setRegistros)
+      .then(records => {
+        const comCoords = records.filter(r => r.fields.Latitude && r.fields.Longitude);
+        console.log(`[MapaPublico] registros recebidos: ${records.length} total, ${comCoords.length} com coordenadas`);
+        if (records.length > 0) {
+          console.log("[MapaPublico] exemplo de campos do 1º registro:", Object.keys(records[0].fields));
+          console.log("[MapaPublico] 1º registro:", records[0].fields);
+        }
+        setRegistros(records);
+      })
       .catch(() => setError("Não foi possível carregar os registros."))
       .finally(() => setLoading(false));
   }, []);
@@ -290,7 +298,7 @@ export default function MapaPublico() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <img src="/shark-logo.JPG" alt="Cação é Tubarão"
             style={{ width: 34, height: 34, objectFit: "cover", borderRadius: "50%",
-              border: "2px solid #CF0F36", flexShrink: 0 }} />
+              border: "none", flexShrink: 0 }} />
           <div>
             <div style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 800,
               fontStyle: "italic", fontSize: 13, color: "#ffffff",

@@ -814,25 +814,26 @@ export default function CacaoApp() {
 
   const slot0 = slots[0];
 
+  const SLOT_HEIGHT = 110;
+
   const SlotCard = ({ idx: si }) => {
     const sl = slots[si];
-    const isFirst = si === 0;
     const isEmpty = !sl.objectUrl;
     return (
       <div style={{ position:"relative", borderRadius:4, overflow:"hidden",
         border: isEmpty ? "2px dashed rgba(207,15,54,0.35)" : "1px solid rgba(207,15,54,0.3)",
         background: isEmpty ? "rgba(207,15,54,0.03)" : "transparent",
-        aspectRatio:"1", display:"flex", alignItems:"center", justifyContent:"center",
+        height: SLOT_HEIGHT, display:"flex", alignItems:"center", justifyContent:"center",
         cursor: isEmpty ? "pointer" : "default",
       }}
         onClick={() => { if (isEmpty) { activeSlotRef.current = si; fileRef.current.click(); } }}
       >
         {isEmpty ? (
           <div style={{ textAlign:"center", padding:8 }}>
-            <IconCamera size={isFirst ? 32 : 22} color="rgba(207,15,54,0.7)" />
+            <IconCamera size={24} color="rgba(207,15,54,0.7)" />
             <div style={{ color:"rgba(207,15,54,0.8)", fontFamily:"'Oswald',sans-serif",
               fontSize:10, letterSpacing:"0.08em", textTransform:"uppercase", marginTop:4 }}>
-              {isFirst ? "Foto 1 *" : `Foto ${si+1}`}
+              {si === 0 ? "Foto 1 *" : `Foto ${si+1}`}
             </div>
           </div>
         ) : (
@@ -870,17 +871,15 @@ export default function CacaoApp() {
         margin:"0 0 6px", fontFamily:"'Montserrat',sans-serif", textTransform:"uppercase", letterSpacing:"0.02em" }}>
         Fotografe o Produto
       </h2>
-      <p style={{ color:"rgba(255,255,255,0.6)", fontSize:13, margin:"0 0 20px", lineHeight:1.6,
+      <p style={{ color:"rgba(255,255,255,0.6)", fontSize:13, margin:"0 0 16px", lineHeight:1.6,
         fontFamily:"'Montserrat',sans-serif" }}>
         Tire uma foto da etiqueta, produto ou display de venda. A IA vai tentar identificar espécie, preço e origem na etiqueta ou placa.
       </p>
 
-      <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:8, marginBottom:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
         <SlotCard idx={0} />
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          <SlotCard idx={1} />
-          <SlotCard idx={2} />
-        </div>
+        <SlotCard idx={1} />
+        <SlotCard idx={2} />
       </div>
 
       {slot0.objectUrl && (
