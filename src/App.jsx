@@ -227,6 +227,28 @@ function MapPicker({ lat, lng, onLocationChange }) {
   const markerRef = useRef(null);
   const containerRef = useRef(null);
 
+  // Move pin reactively when lat/lng change from outside (e.g. Places selection)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L) return;
+    if (!lat || !lng) return;
+    const L = window.L;
+    if (markerRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+    } else {
+      const icon = L.divIcon({
+        html: `<div style="width:32px;height:32px;background:#CF0F36;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.5)"></div>`,
+        iconSize: [32, 32], iconAnchor: [16, 32], className: "",
+      });
+      markerRef.current = L.marker([lat, lng], { icon, draggable: true }).addTo(mapInstanceRef.current);
+      markerRef.current.on("dragend", async (e) => {
+        const { lat: newLat, lng: newLng } = e.target.getLatLng();
+        const addr = await reverseGeocode(newLat, newLng);
+        onLocationChange({ lat: newLat, lng: newLng, addr });
+      });
+    }
+    mapInstanceRef.current.setView([lat, lng], Math.max(mapInstanceRef.current.getZoom(), 14));
+  }, [lat, lng]);
+
   useEffect(() => {
     if (mapInstanceRef.current) return;
 
@@ -579,7 +601,11 @@ export default function CacaoApp() {
               estado: normalizeEstado(addr.state) || f.estado,
               fonteLocalizacao: "GPS (foto)",
             }));
-            resolveCepFromCoords(exif.latitude, exif.longitude).then(cep => { if (cep) applyCepToForm(cep); });
+            if (addr.postcode) {
+              applyCepToForm(addr.postcode.replace(/\D/g, ""));
+            } else {
+              resolveCepFromCoords(exif.latitude, exif.longitude).then(cep => { if (cep) applyCepToForm(cep); });
+            }
           });
         }
         if (exif.DateTimeOriginal) {
@@ -652,7 +678,11 @@ export default function CacaoApp() {
             estado:   normalizeEstado(addr.state) || f.estado,
             fonteLocalizacao: "GPS",
           }));
-          resolveCepFromCoords(latitude, longitude).then(cep => { if (cep) applyCepToForm(cep); });
+          if (addr.postcode) {
+            applyCepToForm(addr.postcode.replace(/\D/g, ""));
+          } else {
+            resolveCepFromCoords(latitude, longitude).then(cep => { if (cep) applyCepToForm(cep); });
+          }
           setGeoStatus("ok");
           setShowMap(true);
         } catch { setGeoStatus("error"); }
@@ -722,7 +752,11 @@ export default function CacaoApp() {
       estado:   normalizeEstado(addr.state) || f.estado,
       fonteLocalizacao: "Mapa",
     }));
-    resolveCepFromCoords(lat, lng).then(cep => { if (cep) applyCepToForm(cep); });
+    if (addr.postcode) {
+      applyCepToForm(addr.postcode.replace(/\D/g, ""));
+    } else {
+      resolveCepFromCoords(lat, lng).then(cep => { if (cep) applyCepToForm(cep); });
+    }
   }, []);
 
   // ── Submit ──
@@ -916,21 +950,34 @@ export default function CacaoApp() {
         style={{ display:"none" }} onChange={e => { handleFileSelect(e.target.files[0]); e.target.value=""; }} />
 
       {/* Campo de data da observação */}
-      <div style={{ ...S.group, marginTop:16 }}>
-        <label style={S.label}>Data da Observação</label>
-        <input
-          style={S.input}
-          placeholder="dd/mm/aaaa"
-          value={form.dataObservacao}
-          onChange={e => upd("dataObservacao", maskDate(e.target.value))}
-          maxLength={10}
-          inputMode="numeric"
-        />
-        <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4,
-          fontFamily:"'Montserrat',sans-serif" }}>
-          Preenchido automaticamente se a foto tiver data. Edite se necessário.
-        </div>
-      </div>
+      {(() => {
+        const today = new Date().toISOString().split("T")[0];
+        const iso = form.dataObservacao ? ddmmyyyyToISO(form.dataObservacao) : "";
+        const dataInvalida = iso && (iso < "2010-01-01" || iso > today + "T23:59:59.999Z");
+        return (
+          <div style={{ ...S.group, marginTop:16 }}>
+            <label style={S.label}>Data da Observação</label>
+            <input
+              style={{ ...S.input, borderColor: dataInvalida ? "#CF0F36" : undefined }}
+              placeholder="dd/mm/aaaa"
+              value={form.dataObservacao}
+              onChange={e => upd("dataObservacao", maskDate(e.target.value))}
+              maxLength={10}
+              inputMode="numeric"
+            />
+            {dataInvalida ? (
+              <div style={{ fontSize:11, color:"#CF0F36", marginTop:4, fontFamily:"'Montserrat',sans-serif" }}>
+                Data inválida — entre 01/01/2010 e hoje
+              </div>
+            ) : (
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4,
+                fontFamily:"'Montserrat',sans-serif" }}>
+                Preenchido automaticamente se a foto tiver data. Edite se necessário.
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div style={{ marginTop:4, padding:"10px 12px", background:"rgba(16,38,63,0.5)",
         borderRadius:4, fontSize:12, color:"rgba(255,255,255,0.4)", lineHeight:1.6,
@@ -1120,7 +1167,8 @@ export default function CacaoApp() {
         <select style={{ ...S.input, appearance:"none" }}
           value={form.tipoEstabelecimento} onChange={e => upd("tipoEstabelecimento", e.target.value)}>
           <option value="">Selecione...</option>
-          {TIPOS_ESTABELECIMENTO.map(t => <option key={t} value={t}>{t}</option>)}
+          {(fieldChoices["Tipo"]?.length > 0 ? fieldChoices["Tipo"] : TIPOS_ESTABELECIMENTO)
+            .map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
 
@@ -1174,7 +1222,8 @@ export default function CacaoApp() {
         <select style={{ ...S.input, appearance:"none" }}
           value={form.formaVenda} onChange={e => upd("formaVenda", e.target.value)}>
           <option value="">Selecione...</option>
-          {FORMAS_VENDA.map(f => <option key={f} value={f}>{f}</option>)}
+          {(fieldChoices["Forma de Venda"]?.length > 0 ? fieldChoices["Forma de Venda"] : FORMAS_VENDA)
+            .map(f => <option key={f} value={f}>{f}</option>)}
         </select>
       </div>
 
@@ -1238,20 +1287,25 @@ export default function CacaoApp() {
       {/* Resumo */}
       <div style={{ background:"#10263F", borderRadius:4, padding:14, marginBottom:18,
         border:"1px solid rgba(255,255,255,0.08)" }}>
-        {slot0.objectUrl && (
-          <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10,
-            paddingBottom:10, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
-            <img src={slot0.objectUrl} style={{ width:52, height:52, borderRadius:4, objectFit:"cover" }} />
-            <div>
-              <div style={{ color:"rgba(255,255,255,0.6)", fontSize:11, fontWeight:400,
-                fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", textTransform:"uppercase" }}>Foto</div>
-              {aiResult && (
-                <div style={{ fontSize:12, fontFamily:"'Montserrat',sans-serif",
-                  color: aiResult.ehCacao==="sim"?"#CF0F36": aiResult.ehCacao==="talvez"?"#600E0A":"#4B8399" }}>
-                  IA: {aiResult.ehCacao==="sim"?"Provável tubarão": aiResult.ehCacao==="talvez"?"Possível tubarão": aiResult.ehCacao==="nao"?"Não identificado":"Inconclusivo"}
-                </div>
-              )}
+        {slots.some(s => s.objectUrl) && (
+          <div style={{ marginBottom:10, paddingBottom:10, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+            <div style={{ color:"rgba(255,255,255,0.6)", fontSize:11, fontWeight:400, marginBottom:6,
+              fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", textTransform:"uppercase" }}>
+              Fotos ({slots.filter(s => s.objectUrl).length})
             </div>
+            <div style={{ display:"flex", gap:6 }}>
+              {slots.map((sl, i) => sl.objectUrl ? (
+                <img key={i} src={sl.objectUrl}
+                  style={{ width:52, height:52, borderRadius:4, objectFit:"cover",
+                    border: i===0 ? "1px solid #CF0F36" : "1px solid rgba(255,255,255,0.1)" }} />
+              ) : null)}
+            </div>
+            {aiResult && (
+              <div style={{ fontSize:12, fontFamily:"'Montserrat',sans-serif", marginTop:6,
+                color: aiResult.ehCacao==="sim"?"#CF0F36": aiResult.ehCacao==="talvez"?"#600E0A":"#4B8399" }}>
+                IA: {aiResult.ehCacao==="sim"?"Provável tubarão": aiResult.ehCacao==="talvez"?"Possível tubarão": aiResult.ehCacao==="nao"?"Não identificado":"Inconclusivo"}
+              </div>
+            )}
           </div>
         )}
         {[
