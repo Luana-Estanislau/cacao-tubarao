@@ -537,7 +537,7 @@ export default function CacaoApp() {
     latitude:null, longitude:null,
     googlePlaceId:"", fonteLocalizacao:"", dataFoto:"",
     dataObservacao:"",
-    formaVenda:"", precoKg:"",
+    formaVenda:"", precoKg:0,
     especieDeclarada:"", origem:"", observacoes:"",
     nome:"", email:"", concordo:false,
   });
@@ -790,7 +790,7 @@ export default function CacaoApp() {
         "Google Place ID":    form.googlePlaceId,
         "Fonte Localizacao":  form.fonteLocalizacao,
         "Forma de Venda":     form.formaVenda,
-        "Preco por kg":       form.precoKg ? parseFloat(form.precoKg) : undefined,
+        "Preco por kg":       form.precoKg > 0 ? form.precoKg / 100 : undefined,
         "Especie Declarada":  form.especieDeclarada,
         "Origem":             form.origem,
         "Analise IA":         aiResult?.ehCacao || "indeterminado",
@@ -828,7 +828,7 @@ export default function CacaoApp() {
       latitude:null, longitude:null,
       googlePlaceId:"", fonteLocalizacao:"",
       dataObservacao:"",
-      formaVenda:"", precoKg:"",
+      formaVenda:"", precoKg:0,
       especieDeclarada:"", origem:"", observacoes:"",
       nome:"", email:"", concordo:false,
     });
@@ -1229,8 +1229,20 @@ export default function CacaoApp() {
 
       <div style={S.group}>
         <label style={S.label}>Preço por kg (R$)</label>
-        <input style={S.input} type="number" placeholder="Ex: 29.90"
-          value={form.precoKg} onChange={e => upd("precoKg", e.target.value)} />
+        <input
+          style={{ ...S.input, MozAppearance:"textfield" }}
+          type="text"
+          inputMode="numeric"
+          value={form.precoKg > 0
+            ? `R$ ${(form.precoKg / 100).toLocaleString("pt-BR", { minimumFractionDigits:2, maximumFractionDigits:2 })}`
+            : ""}
+          placeholder="R$ 0,00"
+          onChange={e => {
+            const digits = e.target.value.replace(/\D/g, "");
+            const cents = digits ? Math.min(parseInt(digits, 10), 999999) : 0;
+            upd("precoKg", cents);
+          }}
+        />
       </div>
 
       <div style={S.group}>
@@ -1312,7 +1324,7 @@ export default function CacaoApp() {
           ["Local", [form.nomeEstabelecimento, form.tipoEstabelecimento, form.cidade && form.estado ? `${form.cidade} - ${form.estado}` : form.cidade].filter(Boolean).join(" · ")],
           ["Endereço", [form.cep && `CEP ${form.cep}`, form.endereco].filter(Boolean).join(" — ")],
           ["Pin", form.latitude ? `${form.latitude?.toFixed(5)}, ${form.longitude?.toFixed(5)}` : null],
-          ["Produto", [form.formaVenda, form.precoKg && `R$ ${form.precoKg}/kg`, form.especieDeclarada && `"${form.especieDeclarada}"`].filter(Boolean).join(" · ")],
+          ["Produto", [form.formaVenda, form.precoKg > 0 && `R$ ${(form.precoKg/100).toLocaleString("pt-BR",{minimumFractionDigits:2})}/kg`, form.especieDeclarada && `"${form.especieDeclarada}"`].filter(Boolean).join(" · ")],
           ["Obs.", form.observacoes],
         ].filter(([,v]) => v).map(([k,v]) => (
           <div key={k} style={{ marginBottom:7 }}>
