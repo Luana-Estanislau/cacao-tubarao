@@ -729,14 +729,14 @@ export default function CacaoApp() {
   async function handleSubmit() {
     setSubmitting(true); setSubmitError(null);
     try {
-      // Upload all non-empty slots
+      // Upload each slot independently; slot 0 is required, 1-2 optional
       const fotoUrls = [null, null, null];
       for (let i = 0; i < 3; i++) {
         const b64 = slots[i].base64;
         if (!b64) continue;
         setSlots(s => s.map((sl, j) => j === i ? { ...sl, status: "uploading" } : sl));
         try {
-          const compressed = await compressImage(b64);
+          const compressed = await compressImage(b64, 1200, 0.92);
           fotoUrls[i] = await uploadToCloudinary(compressed);
           setSlots(s => s.map((sl, j) => j === i ? { ...sl, status: "done" } : sl));
         } catch {
@@ -765,9 +765,9 @@ export default function CacaoApp() {
         "Email Reportante":   form.email,
         "Data Registro":      new Date().toISOString(),
         "Data Observacao":    form.dataObservacao ? (ddmmyyyyToISO(form.dataObservacao) || undefined) : undefined,
-        ...(fotoUrls[0] && { "Foto URL":   fotoUrls[0] }),
-        ...(fotoUrls[1] && { "Foto URL 2": fotoUrls[1] }),
-        ...(fotoUrls[2] && { "Foto URL 3": fotoUrls[2] }),
+        ...(fotoUrls[0] && { "Foto":   [{ url: fotoUrls[0] }] }),
+        ...(fotoUrls[1] && { "Foto 2": [{ url: fotoUrls[1] }] }),
+        ...(fotoUrls[2] && { "Foto 3": [{ url: fotoUrls[2] }] }),
       };
       Object.keys(fields).forEach(k => fields[k] === undefined && delete fields[k]);
       await saveToAirtable(fields);
@@ -1303,22 +1303,29 @@ export default function CacaoApp() {
       )}
 
       {/* Botões */}
+      {slots[0].base64 && slots[0].status !== "done" && !submitting && (
+        <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginBottom:10,
+          fontFamily:"'Montserrat',sans-serif", textAlign:"center" }}>
+          Foto 1 obrigatória — adicione uma foto antes de enviar
+        </div>
+      )}
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         <button
           onClick={handleSubmit}
-          disabled={!form.concordo || submitting || !form.nomeEstabelecimento || !form.cidade}
+          disabled={!form.concordo || submitting || !form.nomeEstabelecimento || !form.cidade || !slots[0].base64}
           style={{
             ...S.btnPrimary,
-            background: form.concordo && form.nomeEstabelecimento && form.cidade
+            background: form.concordo && form.nomeEstabelecimento && form.cidade && slots[0].base64
               ? "#CF0F36"
               : "rgba(255,255,255,0.06)",
-            color: form.concordo && form.nomeEstabelecimento && form.cidade ? "#fff" : "rgba(255,255,255,0.25)",
-            cursor: form.concordo ? "pointer" : "not-allowed",
+            color: form.concordo && form.nomeEstabelecimento && form.cidade && slots[0].base64 ? "#fff" : "rgba(255,255,255,0.25)",
+            cursor: form.concordo && slots[0].base64 ? "pointer" : "not-allowed",
           }}
         >
-          {submitting ? (slots.some(s => s.base64) ? "Enviando..." : "Salvando...") : "Salvar Registro"}
+          {submitting
+            ? (slots.some(s => s.base64) ? "Enviando fotos..." : "Salvando...")
+            : "Salvar Registro"}
         </button>
-
       </div>
 
       <div style={{ marginTop:12, fontSize:11, color:"rgba(255,255,255,0.2)", textAlign:"center",
