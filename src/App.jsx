@@ -583,38 +583,68 @@ export default function CacaoApp() {
 
     if (slotIdx === 0) {
       setAiResult(null); setAiError(null);
-      exifr.parse(file, { gps: true, tiff: true }).then(exif => {
-        if (!exif) return;
+
+      // Capture device location NOW (at photo moment) — runs in parallel with EXIF read.
+      // Browsers strip GPS from EXIF when the photo is taken inside a web app, so we
+      // fall back to the device's live location. EXIF wins if it has coords (imported photo).
+      const captureTime = new Date().toISOString();
+      let deviceGeo = null; // will be set if geolocation succeeds before EXIF resolves
+
+      const geoPromise = new Promise(resolve => {
+        if (!navigator.geolocation) { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          ()  => resolve(null),
+          { timeout: 8000, maximumAge: 30000 }
+        );
+      });
+
+      // EXIF read — result may arrive before or after geo
+      const exifPromise = exifr.parse(file, { gps: true, tiff: true }).catch(() => null);
+
+      Promise.all([exifPromise, geoPromise]).then(([exif, geo]) => {
         const updates = {};
-        if (exif.latitude && exif.longitude && !form.latitude) {
-          updates.latitude = exif.latitude;
-          updates.longitude = exif.longitude;
-          updates.fonteLocalizacao = "GPS (foto)";
+
+        // Date: prefer EXIF (original capture time), fall back to now
+        const exifDate = exif?.DateTimeOriginal;
+        if (exifDate) {
+          const iso = exifDate.toISOString();
+          updates.dataFoto = iso;
+          updates.dataObservacao = isoToDDMMYYYY(iso);
+        } else {
+          updates.dataFoto = captureTime;
+          updates.dataObservacao = isoToDDMMYYYY(captureTime);
+        }
+
+        // Coords: prefer EXIF GPS (imported photo with real location), fall back to device geo
+        const lat = (exif?.latitude) || geo?.latitude;
+        const lng = (exif?.longitude) || geo?.longitude;
+        const source = exif?.latitude ? "GPS (foto)" : geo ? "GPS (foto)" : null;
+
+        if (lat && lng && !form.latitude) {
+          updates.latitude = lat;
+          updates.longitude = lng;
+          updates.fonteLocalizacao = source;
           setShowMap(true);
-          reverseGeocode(exif.latitude, exif.longitude).then(addr => {
+          reverseGeocode(lat, lng).then(addr => {
             setForm(f => ({
               ...f,
-              latitude: exif.latitude,
-              longitude: exif.longitude,
+              latitude: lat, longitude: lng,
               endereco: addr.road ? `${addr.road}${addr.house_number ? ", "+addr.house_number : ""}` : f.endereco,
               cidade: addr.city || addr.town || addr.village || f.cidade,
               estado: normalizeEstado(addr.state) || f.estado,
-              fonteLocalizacao: "GPS (foto)",
+              fonteLocalizacao: source,
             }));
             if (addr.postcode) {
               applyCepToForm(addr.postcode.replace(/\D/g, ""));
             } else {
-              resolveCepFromCoords(exif.latitude, exif.longitude).then(cep => { if (cep) applyCepToForm(cep); });
+              resolveCepFromCoords(lat, lng).then(cep => { if (cep) applyCepToForm(cep); });
             }
           });
         }
-        if (exif.DateTimeOriginal) {
-          const iso = exif.DateTimeOriginal.toISOString();
-          updates.dataFoto = iso;
-          updates.dataObservacao = isoToDDMMYYYY(iso);
-        }
+
         if (Object.keys(updates).length > 0) setForm(f => ({ ...f, ...updates }));
-      }).catch(() => {});
+      });
     }
 
     const reader = new FileReader();
