@@ -184,21 +184,34 @@ async function fetchFieldChoices() {
   }
 }
 
-// ─── Claude image analysis ────────────────────────────────────
+// ─── Compress for AI (higher res to preserve label text legibility) ──
+async function compressForAI(base64, maxWidth = 2000) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let w = img.width, h = img.height;
+      if (w > maxWidth) { h = Math.round((h * maxWidth) / w); w = maxWidth; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]);
+    };
+    img.src = `data:image/jpeg;base64,${base64}`;
+  });
+}
+
+// ─── Claude image analysis — classification badge ─────────────
 async function analyzeSharkImage(base64Image) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
+      max_tokens: 500,
       messages: [{
         role: "user",
         content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: "image/jpeg", data: base64Image },
-          },
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64Image } },
           {
             type: "text",
             text: `Você é especialista em identificar produtos de tubarão vendidos no Brasil como "cação".
@@ -218,6 +231,58 @@ Analise a imagem e responda SOMENTE em JSON válido sem markdown:
   const data = await response.json();
   const text = data.content.map((i) => i.text || "").join("");
   return JSON.parse(text.replace(/```json|```/g, "").trim());
+}
+
+// ─── Claude image analysis — label field extraction (CAC-10) ──
+async function extractLabelFields(images) {
+  // images: array of base64 strings (up to 3), already at AI resolution
+  const content = [];
+  images.forEach((b64, i) => {
+    if (images.length > 1) {
+      content.push({ type: "text", text: `Imagem ${i + 1}:` });
+    }
+    content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } });
+  });
+  content.push({
+    type: "text",
+    text: `Você é um assistente que extrai informações estruturadas de fotos de etiquetas de produtos de peixe/pescado vendidos em mercados brasileiros, para um app de denúncia de venda de tubarão rotulado como "cação".
+
+Analise a(s) imagem(ns) fornecida(s) e extraia os seguintes campos. Retorne exclusivamente um JSON válido, sem texto adicional, no formato:
+
+{
+  "especie_declarada": string ou null,
+  "marca": string ou null,
+  "preco_por_kg": number ou null,
+  "forma_venda": string ou null,
+  "origem_declarada": string ou null
+}
+
+Regras:
+- "especie_declarada": copie o texto como aparece na etiqueta, sem traduzir ou corrigir.
+- "marca": nome da marca do produto, se visível na embalagem ou etiqueta.
+- "preco_por_kg": preço por quilo como número, sem símbolo de moeda. Se só houver preço total (não por kg), retorne null.
+- "forma_venda": inferido a partir da embalagem, do texto da etiqueta ou da aparência do produto (ex: "Filé congelado", "Posta", "Inteiro", "A granel").
+- "origem_declarada": apenas se estiver explicitamente escrita na etiqueta.
+- Se um campo não puder ser determinado com confiança a partir da imagem, retorne null nesse campo — não invente nem estime.
+- Se houver mais de uma foto, considere todas antes de responder.`,
+  });
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 500,
+      messages: [{ role: "user", content }],
+    }),
+  });
+  const data = await response.json();
+  const text = data.content?.map((i) => i.text || "").join("") || "";
+  try {
+    return JSON.parse(text.replace(/```json|```/g, "").trim());
+  } catch {
+    return null;
+  }
 }
 
 // ─── Leaflet Map Component (injected via CDN) ─────────────────
@@ -665,12 +730,39 @@ export default function CacaoApp() {
   }
 
   async function handleAnalyze() {
-    const b64 = slots[0].base64;
-    if (!b64) return;
+    const slotBases = slots.map(s => s.base64).filter(Boolean);
+    if (!slotBases[0]) return;
     setAiLoading(true); setAiError(null);
-    try { setAiResult(await analyzeSharkImage(b64)); }
-    catch { setAiError("Não foi possível analisar. Continue mesmo assim."); }
-    finally { setAiLoading(false); }
+    try {
+      // Compress all available images at higher resolution for AI (preserve label text)
+      const aiImages = await Promise.all(slotBases.map(b => compressForAI(b)));
+
+      // Run classification badge + field extraction in parallel
+      const [badge, fields] = await Promise.all([
+        analyzeSharkImage(aiImages[0]),
+        extractLabelFields(aiImages),
+      ]);
+
+      setAiResult(badge);
+
+      // Auto-fill form fields from label extraction — user can edit all of them
+      if (fields) {
+        setForm(f => ({
+          ...f,
+          especieDeclarada: fields.especie_declarada || f.especieDeclarada,
+          origem:           fields.origem_declarada  || f.origem,
+          formaVenda:       fields.forma_venda        || f.formaVenda,
+          // preco_por_kg comes back as reais (float); convert to centavos for the state
+          precoKg: fields.preco_por_kg > 0
+            ? Math.round(fields.preco_por_kg * 100)
+            : f.precoKg,
+        }));
+      }
+    } catch {
+      setAiError("Não foi possível analisar. Continue mesmo assim.");
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   // ── CEP ──
@@ -957,7 +1049,7 @@ export default function CacaoApp() {
             <div style={{ textAlign:"center", padding:14, color:"rgba(255,255,255,0.6)",
               fontFamily:"'Oswald',sans-serif", letterSpacing:"0.1em", fontSize:13, textTransform:"uppercase",
               background:"rgba(207,15,54,0.06)", borderRadius:4 }}>
-              Analisando imagem...
+              Lendo etiqueta com IA...
             </div>
           )}
           {aiError && (
@@ -965,7 +1057,15 @@ export default function CacaoApp() {
               background:"rgba(96,14,10,0.3)", borderRadius:4,
               fontFamily:"'Montserrat',sans-serif" }}>{aiError}</div>
           )}
-          {aiResult && <AIBadge result={aiResult} />}
+          {aiResult && (
+            <>
+              <AIBadge result={aiResult} />
+              <div style={{ marginTop:6, fontSize:11, color:"rgba(255,255,255,0.35)",
+                fontFamily:"'Montserrat',sans-serif", lineHeight:1.5 }}>
+                Campos preenchidos automaticamente — revise antes de enviar.
+              </div>
+            </>
+          )}
           {form.fonteLocalizacao === "GPS (foto)" && (
             <div style={{ marginTop:8, padding:"8px 12px", background:"rgba(16,38,63,0.8)",
               border:"1px solid rgba(75,131,153,0.3)", borderRadius:4, fontSize:12,
