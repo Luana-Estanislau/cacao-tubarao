@@ -668,6 +668,11 @@ export default function CacaoApp() {
       // Single call to serverless proxy — returns badge + field extraction together
       const result = await callAnthropicProxy(aiImages);
 
+      if (!result.success) {
+        setAiError("Não foi possível analisar. Continue mesmo assim.");
+        return;
+      }
+
       // Classification badge (ehCacao, confianca, observacao, indicadores)
       setAiResult({
         ehCacao:     result.ehCacao     || "indeterminado",

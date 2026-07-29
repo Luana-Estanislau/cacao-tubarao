@@ -64,24 +64,29 @@ Regras:
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5",
         max_tokens: 600,
         messages: [{ role: "user", content }],
       }),
     });
 
     if (!anthropicRes.ok) {
-      const err = await anthropicRes.text();
-      console.error("Anthropic error:", anthropicRes.status, err);
-      return res.status(502).json({ error: "upstream_error" });
+      const errText = await anthropicRes.text();
+      console.error("[analisar-etiqueta] Anthropic error:", anthropicRes.status, errText);
+      return res.status(200).json({ success: false, error: "ia_indisponivel" });
     }
 
     const data = await anthropicRes.json();
     const text = data.content?.map((c) => c.text || "").join("") || "";
-    const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-    return res.status(200).json(parsed);
+    try {
+      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      return res.status(200).json({ success: true, ...parsed });
+    } catch (parseErr) {
+      console.error("[analisar-etiqueta] JSON parse error:", parseErr, "raw:", text);
+      return res.status(200).json({ success: false, error: "parse_error" });
+    }
   } catch (e) {
-    console.error("analisar-etiqueta error:", e);
-    return res.status(500).json({ error: "parse_error" });
+    console.error("[analisar-etiqueta] Unexpected error:", e);
+    return res.status(200).json({ success: false, error: "ia_indisponivel" });
   }
 }
