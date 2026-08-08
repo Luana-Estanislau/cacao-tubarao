@@ -313,7 +313,7 @@ export default function MapaPublico() {
           </div>
         </div>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/registrar")}
           style={{
             padding: "8px 16px", borderRadius: 4,
             background: "#CF0F36",
