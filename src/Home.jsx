@@ -44,7 +44,7 @@ export default function Home() {
 
       <div style={{ padding: "44px 24px 20px", textAlign: "center" }}>
         <img src="/shark-logo.JPG" alt="Cação é Tubarão" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: "50%", marginBottom: 16 }} />
-        <h1 style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 800, fontStyle: "italic", fontSize: 24, textTransform: "uppercase", margin: "0 0 4px", letterSpacing: "0.02em" }}>
+        <h1 style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 800, fontStyle: "italic", fontSize: 24, textTransform: "uppercase", margin: "0 0 4px", letterSpacing: "0.02em", color: "#ffffff" }}>
           Cação é Tubarão
         </h1>
         <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: "0.14em", textTransform: "uppercase" }}>
@@ -65,7 +65,7 @@ export default function Home() {
               <Icon />
             </div>
             <div>
-              <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 13, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 2 }}>{title}</div>
+              <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 13, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 2, color: "#ffffff" }}>{title}</div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>{text}</div>
             </div>
           </div>
