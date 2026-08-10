@@ -21,8 +21,7 @@ export default function Landing() {
       <div style={{
         position: "relative",
         width: "100%",
-        minHeight: "56vw",
-        maxHeight: 420,
+        height: "clamp(200px, 52vw, 380px)",
         overflow: "hidden",
         flexShrink: 0,
       }}>
@@ -33,17 +32,17 @@ export default function Landing() {
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            objectPosition: "center",
+            objectPosition: "center 30%",
             display: "block",
             position: "absolute",
             inset: 0,
           }}
         />
-        {/* gradient overlay */}
+        {/* strong gradient so text always reads over image */}
         <div style={{
           position: "absolute",
           inset: 0,
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.72) 100%)",
+          background: "linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.88) 100%)",
         }} />
         <div style={{
           position: "relative",
@@ -53,18 +52,18 @@ export default function Landing() {
           alignItems: "center",
           justifyContent: "flex-end",
           height: "100%",
-          minHeight: "56vw",
-          maxHeight: 420,
-          padding: "0 20px 28px",
+          padding: "0 20px 24px",
           textAlign: "center",
+          boxSizing: "border-box",
         }}>
           <div style={{
             fontFamily: "'Oswald',sans-serif",
-            fontSize: 11,
-            letterSpacing: "0.18em",
+            fontSize: 10,
+            letterSpacing: "0.2em",
             textTransform: "uppercase",
             color: "#CF0F36",
-            marginBottom: 8,
+            marginBottom: 6,
+            textShadow: "0 1px 4px rgba(0,0,0,0.8)",
           }}>
             Sea Shepherd Brasil
           </div>
@@ -72,22 +71,24 @@ export default function Landing() {
             fontFamily: "'Montserrat',sans-serif",
             fontWeight: 800,
             fontStyle: "italic",
-            fontSize: "clamp(26px, 7vw, 44px)",
+            fontSize: "clamp(24px, 6.5vw, 40px)",
             textTransform: "uppercase",
             letterSpacing: "0.03em",
-            margin: "0 0 8px",
+            margin: "0 0 6px",
             lineHeight: 1.1,
             color: "#ffffff",
+            textShadow: "0 2px 8px rgba(0,0,0,0.9)",
           }}>
             Cação é Tubarão
           </h1>
           <p style={{
             fontFamily: "'Montserrat',sans-serif",
-            fontSize: "clamp(12px, 3.5vw, 15px)",
-            color: "rgba(255,255,255,0.75)",
+            fontSize: "clamp(11px, 3vw, 13px)",
+            color: "rgba(255,255,255,0.8)",
             margin: 0,
-            maxWidth: 360,
+            maxWidth: 320,
             lineHeight: 1.5,
+            textShadow: "0 1px 6px rgba(0,0,0,0.9)",
           }}>
             Mapeamento colaborativo do comércio de tubarões no Brasil
           </p>
@@ -95,40 +96,76 @@ export default function Landing() {
       </div>
 
       {/* ── TEXTO DE CONTEXTO ── */}
-      <div style={{ padding: "32px 24px 0", maxWidth: 560, margin: "0 auto", width: "100%" }}>
+      <div style={{
+        padding: "32px 24px 0",
+        maxWidth: 560,
+        margin: "0 auto",
+        width: "100%",
+        boxSizing: "border-box",
+      }}>
         <p style={{
-          fontSize: 15,
+          fontSize: "clamp(14px, 3.5vw, 15px)",
           lineHeight: 1.75,
           color: "rgba(255,255,255,0.7)",
           margin: 0,
           fontFamily: "'Montserrat',sans-serif",
+          overflowWrap: "break-word",
+          wordBreak: "break-word",
         }}>
           O Brasil é o maior consumidor e importador de carne de tubarão do mundo.
           Vendido como <strong style={{ color: "#ffffff" }}>"cação"</strong> em mercados,
           feiras e restaurantes, o tubarão é comercializado sem identificação de espécie,
           sem rastreabilidade e muitas vezes em desacordo com a legislação ambiental.
-          Cada registro conta — e juntos podemos mapear onde isso acontece.
         </p>
       </div>
 
-      {/* ── CHAMADA PRINCIPAL ── */}
+      {/* ── CADA REGISTRO CONTA ── */}
       <div style={{
-        padding: "40px 24px 8px",
+        padding: "28px 24px 0",
         maxWidth: 560,
         margin: "0 auto",
         width: "100%",
+        boxSizing: "border-box",
         textAlign: "center",
       }}>
         <p style={{
           fontFamily: "'Montserrat',sans-serif",
           fontWeight: 800,
           fontStyle: "italic",
-          fontSize: "clamp(20px, 5.5vw, 30px)",
+          fontSize: "clamp(22px, 6vw, 34px)",
           textTransform: "uppercase",
           color: "#ffffff",
           letterSpacing: "0.02em",
           margin: 0,
+          lineHeight: 1.15,
+          overflowWrap: "break-word",
+          wordBreak: "break-word",
+        }}>
+          Cada registro conta.
+        </p>
+      </div>
+
+      {/* ── AJUDE A MAPEAR ── */}
+      <div style={{
+        padding: "16px 24px 0",
+        maxWidth: 560,
+        margin: "0 auto",
+        width: "100%",
+        boxSizing: "border-box",
+        textAlign: "center",
+      }}>
+        <p style={{
+          fontFamily: "'Montserrat',sans-serif",
+          fontWeight: 800,
+          fontStyle: "italic",
+          fontSize: "clamp(16px, 4.5vw, 24px)",
+          textTransform: "uppercase",
+          color: "rgba(255,255,255,0.55)",
+          letterSpacing: "0.02em",
+          margin: 0,
           lineHeight: 1.2,
+          overflowWrap: "break-word",
+          wordBreak: "break-word",
         }}>
           Ajude a mapear onde isso acontece
         </p>
@@ -161,6 +198,35 @@ export default function Landing() {
           }}
         >
           Registre
+        </button>
+      </div>
+
+      {/* ── BANNER MAPA ── */}
+      <div style={{
+        padding: "12px 24px 0",
+        maxWidth: 560,
+        margin: "0 auto",
+        width: "100%",
+        boxSizing: "border-box",
+      }}>
+        <button
+          onClick={() => navigate("/mapa")}
+          style={{
+            width: "100%",
+            padding: "13px",
+            background: "transparent",
+            border: "1px solid rgba(75,131,153,0.4)",
+            borderRadius: 4,
+            color: "#4B8399",
+            fontFamily: "'Oswald',sans-serif",
+            fontWeight: 400,
+            fontSize: 14,
+            letterSpacing: "0.15em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+          }}
+        >
+          Veja o Mapa
         </button>
       </div>
 
