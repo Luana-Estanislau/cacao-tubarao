@@ -226,7 +226,7 @@ export default function Landing() {
             cursor: "pointer",
           }}
         >
-          Veja o Mapa
+          Mapa de Avistamentos
         </button>
       </div>
 
@@ -241,7 +241,6 @@ export default function Landing() {
         borderTop: "1px solid rgba(255,255,255,0.06)",
       }}>
         {[
-          { label: "Mapa de avistamentos", href: "/mapa", internal: true },
           { label: "Sea Shepherd Brasil", href: "https://seashepherd.org.br", internal: false },
           { label: "Defensores dos Tubarões", href: "https://seashepherd.org.br/defensores-dos-tubaroes/", internal: false },
           { label: "Assinar a petição", href: "https://seashepherd.org.br/peticao-pelos-tubaroes/", internal: false },

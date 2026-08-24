@@ -129,25 +129,34 @@ async function saveToAirtable(fields) {
 }
 
 // ─── Google reverse geocode — single source for address + CEP ─
+// Scans ALL results because each granularity level carries different components:
+// results[0] = most specific (has route/street_number), later results = postal_code/city/state
 async function reverseGeocodeGoogle(lat, lng) {
   try {
     const res = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=pt-BR&key=${GOOGLE_PLACES_KEY}`
     );
     const data = await res.json();
-    const result = data.results?.[0];
-    if (!result) return {};
-    const comps = result.address_components || [];
-    const get  = (type) => comps.find(c => c.types.includes(type))?.long_name  || "";
-    const getS = (type) => comps.find(c => c.types.includes(type))?.short_name || "";
-    return {
-      road:        get("route"),
-      houseNumber: get("street_number"),
-      city:        get("administrative_area_level_2") || get("locality"),
-      state:       getS("administrative_area_level_1"),
-      postalCode:  get("postal_code").replace(/\D/g, ""),
+    if (!data.results?.length) return {};
+
+    const find = (type, short = false) => {
+      for (const r of data.results) {
+        const comp = r.address_components?.find(c => c.types.includes(type));
+        if (comp) return short ? comp.short_name : comp.long_name;
+      }
+      return "";
     };
-  } catch {
+
+    return {
+      road:        find("route"),
+      houseNumber: find("street_number"),
+      // locality = city name in Brazil; administrative_area_level_2 = "Município de X" (too verbose)
+      city:        find("locality") || find("administrative_area_level_2"),
+      state:       find("administrative_area_level_1", true), // short_name = 2-letter UF
+      postalCode:  find("postal_code").replace(/\D/g, ""),
+    };
+  } catch (e) {
+    console.error("[reverseGeocodeGoogle]", e);
     return {};
   }
 }
@@ -717,27 +726,42 @@ export default function CacaoApp() {
     const lat = place.location?.latitude;
     const lng = place.location?.longitude;
 
+    // Parse formattedAddress immediately — format: "Street, N - Neighborhood, City - ST, 00000-000, Brasil"
+    const fa = place.formattedAddress || "";
+    const cepMatch  = fa.match(/\b(\d{5})-?(\d{3})\b/);
+    const stateMatch = fa.match(/\b([A-Z]{2})\s*,\s*\d{5}/);
+    const dashParts = fa.split(" - ");
+    const enderecoRaw = dashParts[0]?.trim() || "";
+    // City is the last word-group after the last comma in the middle section
+    const midSection = dashParts.length >= 2 ? dashParts[dashParts.length - 2] : "";
+    const midParts = midSection.split(",");
+    const cityFromAddr = midParts[midParts.length - 1]?.trim() || "";
+
     setForm(f => ({
       ...f,
       nomeEstabelecimento: place.displayName?.text || f.nomeEstabelecimento,
-      latitude:       lat || f.latitude,
-      longitude:      lng || f.longitude,
-      googlePlaceId:  place.id || f.googlePlaceId,
+      latitude:         lat || f.latitude,
+      longitude:        lng || f.longitude,
+      googlePlaceId:    place.id || f.googlePlaceId,
       fonteLocalizacao: "Google Places",
+      endereco:  enderecoRaw || f.endereco,
+      cidade:    cityFromAddr || f.cidade,
+      estado:    normalizeEstado(stateMatch?.[1] || "") || f.estado,
+      cep:       cepMatch ? cepMatch[1] + cepMatch[2] : f.cep,
     }));
     setPlacesQuery(place.displayName?.text || "");
     setPlacesResults([]);
     setShowMap(true);
 
-    // Get precise address + CEP from Google Geocoding (single source, no Nominatim or ViaCEP)
+    // Geocoding as async enhancement — fills in any missing fields (city, CEP) if parsing missed them
     if (lat && lng) {
       reverseGeocodeGoogle(lat, lng).then(addr => {
         setForm(f => ({
           ...f,
-          endereco: addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : f.endereco,
-          cidade:   addr.city  || f.cidade,
-          estado:   normalizeEstado(addr.state) || f.estado,
-          cep:      addr.postalCode || f.cep,
+          endereco: f.endereco || (addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : ""),
+          cidade:   f.cidade   || addr.city  || "",
+          estado:   f.estado   || normalizeEstado(addr.state) || "",
+          cep:      f.cep      || addr.postalCode || "",
         }));
       });
     }
@@ -1016,16 +1040,17 @@ export default function CacaoApp() {
           letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>GPS</strong> — usa sua localização atual<br/>
         <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
           letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>Mapa</strong> — marca no mapa se não está no local<br/>
-        O CEP é preenchido automaticamente ao confirmar a localização.
+        <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
+          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>Mapa</strong> — marca no mapa se não está no local
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:18 }}>
         {[
           { Icon: IconSearch, label:"Places", active: form.fonteLocalizacao==="Google Places",
             action: () => { document.getElementById("places-input")?.focus(); } },
-          { Icon: IconPin, label:"GPS", active: geoStatus==="ok" || geoStatus==="loading",
-            action: () => { setShowMap(false); handleGPS(); } },
-          { Icon: IconMap, label:"Mapa", active: showMap,
+          { Icon: IconPin,   label:"GPS",    active: form.fonteLocalizacao==="GPS",
+            action: () => { handleGPS(); } },
+          { Icon: IconMap,   label:"Mapa",   active: form.fonteLocalizacao==="Mapa",
             action: () => { setShowMap(v => !v); } },
         ].map(({ Icon, label, action, active }) => (
           <button key={label} onClick={action} style={{
