@@ -200,6 +200,16 @@ async function geocodeReverse(lat, lng) {
   return {};
 }
 
+// ─── Generic select validator for Airtable submit ────────────
+// Returns value if it's a known option, undefined otherwise.
+// Prevents "Insufficient permissions to create new select option" errors.
+function validSelect(fieldName, value, choices) {
+  if (!value) return undefined;
+  const opts = choices[fieldName];
+  if (!opts || opts.length === 0) return undefined; // unknown field → omit safely
+  return opts.includes(value) ? value : undefined;
+}
+
 // Build a display string from a geocoding result
 function addrToEndereco(addr) {
   if (addr.road) return `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}`;
@@ -860,7 +870,7 @@ export default function CacaoApp() {
 
       const fields = {
         "Estabelecimento":    form.nomeEstabelecimento,
-        "Tipo":               form.tipoEstabelecimento || undefined,
+        "Tipo":               validSelect("Tipo", form.tipoEstabelecimento, fieldChoices),
         "CEP":                form.cep,
         "Endereco":           form.numero ? `${form.endereco}, ${form.numero}` : form.endereco,
         "Cidade":             form.cidade,
@@ -868,16 +878,16 @@ export default function CacaoApp() {
         "Latitude":           form.latitude  ? parseFloat(form.latitude)  : undefined,
         "Longitude":          form.longitude ? parseFloat(form.longitude) : undefined,
         "Google Place ID":    form.googlePlaceId,
-        "Fonte Localizacao":  form.fonteLocalizacao,
-        "Forma de Venda":     form.formaVenda       || undefined,
+        "Fonte Localizacao":  validSelect("Fonte Localizacao", form.fonteLocalizacao, fieldChoices),
+        "Forma de Venda":     validSelect("Forma de Venda", form.formaVenda, fieldChoices),
         "Forma_de_Venda_Outro": form.formaVenda === "Outro" ? form.formaVendaOutro.trim() || undefined : undefined,
         "Preco por kg":       form.precoKg > 0 ? form.precoKg / 100 : undefined,
-        "Especie Declarada":  form.especieDeclarada  || undefined,
+        "Especie Declarada":  validSelect("Especie Declarada", form.especieDeclarada, fieldChoices),
         "Especie_Declarada_Outro": form.especieDeclarada === "Outro" ? form.especieDeclaradaOutro.trim() || undefined : undefined,
-        "Origem":             form.origem            || undefined,
+        "Origem":             validSelect("Origem", form.origem, fieldChoices),
         "Origem_Declarada_Outro": form.origem === "Outro" ? form.origemOutro.trim() || undefined : undefined,
         "Marca":              form.marca.trim() || undefined,
-        "Analise IA":         aiResult?.ehCacao      || undefined,
+        "Analise IA":         validSelect("Analise IA", aiResult?.ehCacao, fieldChoices),
         "Observacoes":        form.observacoes,
         "Nome Reportante":    form.nome,
         "Email Reportante":   form.email,
@@ -923,7 +933,7 @@ export default function CacaoApp() {
   const idx = STEPS.indexOf(step);
   const canNext = {
     foto: true,
-    local: !!(form.nomeEstabelecimento && (form.endereco || (form.cidade && form.estado))),
+    local: !!(form.endereco || (form.cidade && form.estado)),
     produto: !(
       (form.formaVenda === "Outro" && !form.formaVendaOutro.trim()) ||
       (form.especieDeclarada === "Outro" && !form.especieDeclaradaOutro.trim()) ||
@@ -1277,6 +1287,16 @@ export default function CacaoApp() {
             readOnly
             tabIndex={-1}
           />
+        </div>
+      )}
+
+      {/* CEP — somente leitura, preenchido automaticamente */}
+      {form.cep && (
+        <div style={S.group}>
+          <label style={S.label}>CEP</label>
+          <input style={{ ...S.input, opacity:0.6 }}
+            value={form.cep.replace(/^(\d{5})(\d{3})$/, "$1-$2")}
+            readOnly />
         </div>
       )}
 
