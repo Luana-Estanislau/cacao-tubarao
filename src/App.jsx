@@ -128,38 +128,28 @@ async function saveToAirtable(fields) {
   return res.json();
 }
 
-// ─── ViaCEP ──────────────────────────────────────────────────
-async function fetchCEP(cep) {
-  const clean = cep.replace(/\D/g, "");
-  if (clean.length !== 8) throw new Error("CEP inválido");
-  const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
-  const data = await res.json();
-  if (data.erro) throw new Error("CEP não encontrado");
-  return data;
-}
-
-// ─── Nominatim reverse geocode ────────────────────────────────
-async function reverseGeocode(lat, lng) {
-  const res = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=pt-BR`
-  );
-  const data = await res.json();
-  return data.address || {};
-}
-
-// ─── Resolve CEP from lat/lng via Google Geocoding ────────────
-async function resolveCepFromCoords(lat, lng) {
+// ─── Google reverse geocode — single source for address + CEP ─
+async function reverseGeocodeGoogle(lat, lng) {
   try {
     const res = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_PLACES_KEY}`
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=pt-BR&key=${GOOGLE_PLACES_KEY}`
     );
     const data = await res.json();
-    for (const result of data.results || []) {
-      const comp = result.address_components?.find(c => c.types.includes("postal_code"));
-      if (comp) return comp.long_name.replace(/\D/g, "");
-    }
-  } catch {}
-  return null;
+    const result = data.results?.[0];
+    if (!result) return {};
+    const comps = result.address_components || [];
+    const get  = (type) => comps.find(c => c.types.includes(type))?.long_name  || "";
+    const getS = (type) => comps.find(c => c.types.includes(type))?.short_name || "";
+    return {
+      road:        get("route"),
+      houseNumber: get("street_number"),
+      city:        get("administrative_area_level_2") || get("locality"),
+      state:       getS("administrative_area_level_1"),
+      postalCode:  get("postal_code").replace(/\D/g, ""),
+    };
+  } catch {
+    return {};
+  }
 }
 
 // ─── Airtable field metadata → choices ───────────────────────
@@ -215,10 +205,19 @@ async function callAnthropicProxy(images) {
 
 // ─── Leaflet Map Component (injected via CDN) ─────────────────
 function MapPicker({ lat, lng, onLocationChange }) {
-  const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const containerRef = useRef(null);
+  // Generation token: every new geocode request increments this; stale responses are discarded.
+  const geoGenRef = useRef(0);
+
+  const makeGeoHandler = (newLat, newLng) => {
+    const gen = ++geoGenRef.current;
+    reverseGeocodeGoogle(newLat, newLng).then(addr => {
+      if (gen !== geoGenRef.current) return; // a newer request already fired, discard
+      onLocationChange({ lat: newLat, lng: newLng, addr });
+    });
+  };
 
   // Move pin reactively when lat/lng change from outside (e.g. Places selection)
   useEffect(() => {
@@ -233,10 +232,9 @@ function MapPicker({ lat, lng, onLocationChange }) {
         iconSize: [32, 32], iconAnchor: [16, 32], className: "",
       });
       markerRef.current = L.marker([lat, lng], { icon, draggable: true }).addTo(mapInstanceRef.current);
-      markerRef.current.on("dragend", async (e) => {
+      markerRef.current.on("dragend", (e) => {
         const { lat: newLat, lng: newLng } = e.target.getLatLng();
-        const addr = await reverseGeocode(newLat, newLng);
-        onLocationChange({ lat: newLat, lng: newLng, addr });
+        makeGeoHandler(newLat, newLng);
       });
     }
     mapInstanceRef.current.setView([lat, lng], Math.max(mapInstanceRef.current.getZoom(), 14));
@@ -280,29 +278,24 @@ function MapPicker({ lat, lng, onLocationChange }) {
         className: "",
       });
 
-      if (lat && lng) {
-        markerRef.current = L.marker([lat, lng], { icon, draggable: true }).addTo(map);
-        markerRef.current.on("dragend", async (e) => {
-          const { lat: newLat, lng: newLng } = e.target.getLatLng();
-          const addr = await reverseGeocode(newLat, newLng);
-          onLocationChange({ lat: newLat, lng: newLng, addr });
+      const addDraggableMarker = (mLat, mLng) => {
+        markerRef.current = L.marker([mLat, mLng], { icon, draggable: true }).addTo(map);
+        markerRef.current.on("dragend", (e) => {
+          const { lat: dLat, lng: dLng } = e.target.getLatLng();
+          makeGeoHandler(dLat, dLng);
         });
-      }
+      };
 
-      map.on("click", async (e) => {
+      if (lat && lng) addDraggableMarker(lat, lng);
+
+      map.on("click", (e) => {
         const { lat: newLat, lng: newLng } = e.latlng;
         if (markerRef.current) {
           markerRef.current.setLatLng([newLat, newLng]);
         } else {
-          markerRef.current = L.marker([newLat, newLng], { icon, draggable: true }).addTo(map);
-          markerRef.current.on("dragend", async (ev) => {
-            const { lat: dLat, lng: dLng } = ev.target.getLatLng();
-            const addr = await reverseGeocode(dLat, dLng);
-            onLocationChange({ lat: dLat, lng: dLng, addr });
-          });
+          addDraggableMarker(newLat, newLng);
         }
-        const addr = await reverseGeocode(newLat, newLng);
-        onLocationChange({ lat: newLat, lng: newLng, addr });
+        makeGeoHandler(newLat, newLng);
       });
 
       mapInstanceRef.current = map;
@@ -535,8 +528,6 @@ export default function CacaoApp() {
     nome:"", email:"", concordo:false,
   });
 
-  const [cepLoading, setCepLoading] = useState(false);
-  const [cepError, setCepError]     = useState(null);
   const [geoStatus, setGeoStatus]   = useState("idle");
   const [showMap, setShowMap]       = useState(false);
   const [placesQuery, setPlacesQuery] = useState("");
@@ -551,21 +542,6 @@ export default function CacaoApp() {
   useEffect(() => {
     fetchFieldChoices().then(c => { setFieldChoices(c); setChoicesLoading(false); });
   }, []);
-
-  // ── helpers ──
-  async function applyCepToForm(cepClean) {
-    if (!cepClean || cepClean.length !== 8) return;
-    try {
-      const d = await fetchCEP(cepClean);
-      setForm(f => ({
-        ...f,
-        cep: cepClean,
-        endereco: d.logradouro || f.endereco,
-        cidade:   d.localidade  || f.cidade,
-        estado:   d.uf          || f.estado,
-      }));
-    } catch {}
-  }
 
   // ── Foto (multi-slot) ──
   function handleFileSelect(file) {
@@ -619,20 +595,16 @@ export default function CacaoApp() {
           updates.longitude = lng;
           updates.fonteLocalizacao = source;
           setShowMap(true);
-          reverseGeocode(lat, lng).then(addr => {
+          reverseGeocodeGoogle(lat, lng).then(addr => {
             setForm(f => ({
               ...f,
               latitude: lat, longitude: lng,
-              endereco: addr.road ? `${addr.road}${addr.house_number ? ", "+addr.house_number : ""}` : f.endereco,
-              cidade: addr.city || addr.town || addr.village || f.cidade,
-              estado: normalizeEstado(addr.state) || f.estado,
+              endereco: addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : f.endereco,
+              cidade:   addr.city  || f.cidade,
+              estado:   normalizeEstado(addr.state) || f.estado,
+              cep:      addr.postalCode || f.cep,
               fonteLocalizacao: source,
             }));
-            if (addr.postcode) {
-              applyCepToForm(addr.postcode.replace(/\D/g, ""));
-            } else {
-              resolveCepFromCoords(lat, lng).then(cep => { if (cep) applyCepToForm(cep); });
-            }
           });
         }
 
@@ -698,24 +670,6 @@ export default function CacaoApp() {
     }
   }
 
-  // ── CEP ──
-  async function handleCEP(raw) {
-    upd("cep", raw);
-    const clean = raw.replace(/\D/g,"");
-    if (clean.length !== 8) { setCepError(null); return; }
-    setCepLoading(true); setCepError(null);
-    try {
-      const d = await fetchCEP(clean);
-      setForm(f => ({
-        ...f,
-        endereco: d.logradouro || f.endereco,
-        cidade:   d.localidade  || f.cidade,
-        estado:   d.uf          || f.estado,
-        fonteLocalizacao: "CEP",
-      }));
-    } catch(e) { setCepError(e.message); }
-    finally { setCepLoading(false); }
-  }
 
   // ── GPS ──
   async function handleGPS() {
@@ -724,20 +678,16 @@ export default function CacaoApp() {
       async pos => {
         const { latitude, longitude } = pos.coords;
         try {
-          const addr = await reverseGeocode(latitude, longitude);
+          const addr = await reverseGeocodeGoogle(latitude, longitude);
           setForm(f => ({
             ...f,
             latitude, longitude,
-            endereco: addr.road ? `${addr.road}${addr.house_number ? ", "+addr.house_number : ""}` : f.endereco,
-            cidade:   addr.city || addr.town || addr.village || f.cidade,
+            endereco: addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : f.endereco,
+            cidade:   addr.city  || f.cidade,
             estado:   normalizeEstado(addr.state) || f.estado,
+            cep:      addr.postalCode || f.cep,
             fonteLocalizacao: "GPS",
           }));
-          if (addr.postcode) {
-            applyCepToForm(addr.postcode.replace(/\D/g, ""));
-          } else {
-            resolveCepFromCoords(latitude, longitude).then(cep => { if (cep) applyCepToForm(cep); });
-          }
           setGeoStatus("ok");
           setShowMap(true);
         } catch { setGeoStatus("error"); }
@@ -764,54 +714,45 @@ export default function CacaoApp() {
   }
 
   function handleSelectPlace(place) {
-    const addr = place.formattedAddress || "";
-    const stateMatch = addr.match(/\b([A-Z]{2}),\s*\d{5}/);
-    const estado = stateMatch ? stateMatch[1] : "";
-    const cityMatch = addr.match(/,\s*([^,]+)\s*-\s*[A-Z]{2},/);
-    const cidade = cityMatch ? cityMatch[1].trim() : "";
-    const streetParts = addr.split(",");
-    const endereco = streetParts.slice(0, 2).join(",").trim();
     const lat = place.location?.latitude;
     const lng = place.location?.longitude;
 
     setForm(f => ({
       ...f,
       nomeEstabelecimento: place.displayName?.text || f.nomeEstabelecimento,
-      endereco: endereco,
-      cidade: cidade,
-      estado: normalizeEstado(estado) || estado,
-      latitude: lat || f.latitude,
-      longitude: lng || f.longitude,
-      googlePlaceId: place.id || f.googlePlaceId,
+      latitude:       lat || f.latitude,
+      longitude:      lng || f.longitude,
+      googlePlaceId:  place.id || f.googlePlaceId,
       fonteLocalizacao: "Google Places",
     }));
     setPlacesQuery(place.displayName?.text || "");
     setPlacesResults([]);
     setShowMap(true);
 
-    // Auto-fill CEP: check formattedAddress first, then Geocoding
-    const cepInAddr = addr.match(/\b(\d{5})-?(\d{3})\b/);
-    if (cepInAddr) {
-      applyCepToForm(cepInAddr[1] + cepInAddr[2]);
-    } else if (lat && lng) {
-      resolveCepFromCoords(lat, lng).then(cep => { if (cep) applyCepToForm(cep); });
+    // Get precise address + CEP from Google Geocoding (single source, no Nominatim or ViaCEP)
+    if (lat && lng) {
+      reverseGeocodeGoogle(lat, lng).then(addr => {
+        setForm(f => ({
+          ...f,
+          endereco: addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : f.endereco,
+          cidade:   addr.city  || f.cidade,
+          estado:   normalizeEstado(addr.state) || f.estado,
+          cep:      addr.postalCode || f.cep,
+        }));
+      });
     }
   }
 
-  const handleMapLocation = useCallback(async ({ lat, lng, addr }) => {
+  const handleMapLocation = useCallback(({ lat, lng, addr }) => {
     setForm(f => ({
       ...f,
       latitude: lat, longitude: lng,
-      endereco: addr.road ? `${addr.road}${addr.house_number ? ", "+addr.house_number:""}` : f.endereco,
-      cidade:   addr.city || addr.town || addr.village || f.cidade,
+      endereco: addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : f.endereco,
+      cidade:   addr.city  || f.cidade,
       estado:   normalizeEstado(addr.state) || f.estado,
+      cep:      addr.postalCode || f.cep,
       fonteLocalizacao: "Mapa",
     }));
-    if (addr.postcode) {
-      applyCepToForm(addr.postcode.replace(/\D/g, ""));
-    } else {
-      resolveCepFromCoords(lat, lng).then(cep => { if (cep) applyCepToForm(cep); });
-    }
   }, []);
 
   // ── Submit ──
@@ -1075,11 +1016,10 @@ export default function CacaoApp() {
           letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>GPS</strong> — usa sua localização atual<br/>
         <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
           letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>Mapa</strong> — marca no mapa se não está no local<br/>
-        <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
-          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>CEP</strong> — se souber o CEP do estabelecimento
+        O CEP é preenchido automaticamente ao confirmar a localização.
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:8, marginBottom:18 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:18 }}>
         {[
           { Icon: IconSearch, label:"Places", active: form.fonteLocalizacao==="Google Places",
             action: () => { document.getElementById("places-input")?.focus(); } },
@@ -1087,8 +1027,6 @@ export default function CacaoApp() {
             action: () => { setShowMap(false); handleGPS(); } },
           { Icon: IconMap, label:"Mapa", active: showMap,
             action: () => { setShowMap(v => !v); } },
-          { Icon: IconEnvelope, label:"CEP", active: form.fonteLocalizacao==="CEP",
-            action: () => { setShowMap(false); document.getElementById("campo-cep")?.focus(); } },
         ].map(({ Icon, label, action, active }) => (
           <button key={label} onClick={action} style={{
             padding:"10px 4px", borderRadius:4, cursor:"pointer",
@@ -1152,22 +1090,6 @@ export default function CacaoApp() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* CEP */}
-      <div style={S.group}>
-        <label style={S.label}>CEP</label>
-        <div style={{ position:"relative" }}>
-          <input id="campo-cep" style={{ ...S.input, paddingRight:36 }}
-            placeholder="00000-000" value={form.cep}
-            onChange={e => handleCEP(e.target.value)} maxLength={9} />
-          {cepLoading && (
-            <div style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
-              color:"#CF0F36", fontSize:12 }}>...</div>
-          )}
-        </div>
-        {cepError && <div style={{ color:"#CF0F36", fontSize:12, marginTop:4,
-          fontFamily:"'Montserrat',sans-serif" }}>{cepError}</div>}
       </div>
 
       {/* Mapa */}
@@ -1251,6 +1173,19 @@ export default function CacaoApp() {
             value={form.numero || ""} onChange={e => upd("numero", e.target.value)} />
         </div>
       </div>
+
+      {/* CEP — somente leitura, preenchido automaticamente */}
+      {form.cep && (
+        <div style={S.group}>
+          <label style={S.label}>CEP</label>
+          <input
+            style={{ ...S.input, opacity: 0.6, cursor: "default" }}
+            value={form.cep.replace(/^(\d{5})(\d{3})$/, "$1-$2")}
+            readOnly
+            tabIndex={-1}
+          />
+        </div>
+      )}
 
       {/* Cidade + Estado */}
       {locationLocked && (
