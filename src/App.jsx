@@ -129,8 +129,7 @@ async function saveToAirtable(fields) {
 }
 
 // ─── Google reverse geocode — single source for address + CEP ─
-// Scans ALL results because each granularity level carries different components:
-// results[0] = most specific (has route/street_number), later results = postal_code/city/state
+// Scans ALL result entries because each granularity level carries different components.
 async function reverseGeocodeGoogle(lat, lng) {
   try {
     const res = await fetch(
@@ -147,18 +146,32 @@ async function reverseGeocodeGoogle(lat, lng) {
       return "";
     };
 
+    const road = find("route")
+      || find("establishment")
+      || find("premise")
+      || find("point_of_interest");
+
+    // Use formatted_address of the most specific result as fallback display string
+    const formattedFallback = data.results[0]?.formatted_address || "";
+
     return {
-      road:        find("route"),
+      road,
       houseNumber: find("street_number"),
-      // locality = city name in Brazil; administrative_area_level_2 = "Município de X" (too verbose)
       city:        find("locality") || find("administrative_area_level_2"),
-      state:       find("administrative_area_level_1", true), // short_name = 2-letter UF
+      state:       find("administrative_area_level_1", true),
       postalCode:  find("postal_code").replace(/\D/g, ""),
+      formattedFallback,
     };
   } catch (e) {
     console.error("[reverseGeocodeGoogle]", e);
     return {};
   }
+}
+
+// Build a display string from a geocoding result; falls back to formattedFallback
+function addrToEndereco(addr) {
+  if (addr.road) return `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}`;
+  return addr.formattedFallback || "";
 }
 
 // ─── Airtable field metadata → choices ───────────────────────
@@ -608,7 +621,7 @@ export default function CacaoApp() {
             setForm(f => ({
               ...f,
               latitude: lat, longitude: lng,
-              endereco: addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : f.endereco,
+              endereco: addrToEndereco(addr) || f.endereco,
               cidade:   addr.city  || f.cidade,
               estado:   normalizeEstado(addr.state) || f.estado,
               cep:      addr.postalCode || f.cep,
@@ -682,6 +695,9 @@ export default function CacaoApp() {
 
   // ── GPS ──
   async function handleGPS() {
+    // Clear any previous location data so old values don't persist on screen
+    setForm(f => ({ ...f, endereco:"", cidade:"", estado:"", cep:"", latitude:null, longitude:null, fonteLocalizacao:"" }));
+    setShowMap(false);
     setGeoStatus("loading");
     navigator.geolocation.getCurrentPosition(
       async pos => {
@@ -691,17 +707,18 @@ export default function CacaoApp() {
           setForm(f => ({
             ...f,
             latitude, longitude,
-            endereco: addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : f.endereco,
-            cidade:   addr.city  || f.cidade,
-            estado:   normalizeEstado(addr.state) || f.estado,
-            cep:      addr.postalCode || f.cep,
+            endereco: addrToEndereco(addr),
+            cidade:   addr.city  || "",
+            estado:   normalizeEstado(addr.state) || "",
+            cep:      addr.postalCode || "",
             fonteLocalizacao: "GPS",
           }));
           setGeoStatus("ok");
           setShowMap(true);
         } catch { setGeoStatus("error"); }
       },
-      () => setGeoStatus("error")
+      () => setGeoStatus("error"),
+      { maximumAge: 0, timeout: 10000 }
     );
   }
 
@@ -753,12 +770,12 @@ export default function CacaoApp() {
     setPlacesResults([]);
     setShowMap(true);
 
-    // Geocoding as async enhancement — fills in any missing fields (city, CEP) if parsing missed them
+    // Geocoding as async enhancement — overwrites only if the field is still empty
     if (lat && lng) {
       reverseGeocodeGoogle(lat, lng).then(addr => {
         setForm(f => ({
           ...f,
-          endereco: f.endereco || (addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : ""),
+          endereco: f.endereco || addrToEndereco(addr),
           cidade:   f.cidade   || addr.city  || "",
           estado:   f.estado   || normalizeEstado(addr.state) || "",
           cep:      f.cep      || addr.postalCode || "",
@@ -771,10 +788,10 @@ export default function CacaoApp() {
     setForm(f => ({
       ...f,
       latitude: lat, longitude: lng,
-      endereco: addr.road ? `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}` : f.endereco,
-      cidade:   addr.city  || f.cidade,
-      estado:   normalizeEstado(addr.state) || f.estado,
-      cep:      addr.postalCode || f.cep,
+      endereco: addrToEndereco(addr),
+      cidade:   addr.city  || "",
+      estado:   normalizeEstado(addr.state) || "",
+      cep:      addr.postalCode || "",
       fonteLocalizacao: "Mapa",
     }));
   }, []);
@@ -1212,19 +1229,30 @@ export default function CacaoApp() {
         </div>
       )}
 
-      {/* Cidade + Estado */}
-      {locationLocked && (
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap:10 }}>
-          <div style={S.group}>
-            <label style={S.label}>Cidade</label>
-            <input style={{ ...S.input, opacity:0.6 }} value={form.cidade} readOnly />
-          </div>
-          <div style={S.group}>
-            <label style={S.label}>Estado</label>
-            <input style={{ ...S.input, opacity:0.6 }} value={form.estado} readOnly />
-          </div>
+      {/* Cidade + Estado — sempre visíveis; readonly só quando localização confirmada */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap:10 }}>
+        <div style={S.group}>
+          <label style={S.label}>Cidade *</label>
+          <input
+            style={{ ...S.input, opacity: locationLocked ? 0.6 : 1 }}
+            placeholder="Preenchido automaticamente"
+            value={form.cidade}
+            readOnly={locationLocked}
+            onChange={e => !locationLocked && upd("cidade", e.target.value)}
+          />
         </div>
-      )}
+        <div style={S.group}>
+          <label style={S.label}>Estado *</label>
+          {locationLocked ? (
+            <input style={{ ...S.input, opacity:0.6 }} value={form.estado} readOnly />
+          ) : (
+            <select style={{ ...S.input, appearance:"none" }} value={form.estado} onChange={e => upd("estado", e.target.value)}>
+              <option value="">UF</option>
+              {ESTADOS_BR.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+            </select>
+          )}
+        </div>
+      </div>
     </div>
   );
 
