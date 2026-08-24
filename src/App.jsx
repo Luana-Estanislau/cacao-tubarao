@@ -168,7 +168,39 @@ async function reverseGeocodeGoogle(lat, lng) {
   }
 }
 
-// Build a display string from a geocoding result; falls back to formattedFallback
+// ─── Nominatim reverse geocode — fallback when Google Geocoding returns no data ─
+async function reverseGeocodeNominatim(lat, lng) {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=pt-BR`,
+    { headers: { "User-Agent": "cacao-tubarao/1.0" } }
+  );
+  const data = await res.json();
+  const a = data.address || {};
+  return {
+    road:             a.road || a.pedestrian || a.path || a.highway || "",
+    houseNumber:      a.house_number || "",
+    city:             a.city || a.town || a.village || a.municipality || "",
+    state:            normalizeEstado(a.state) || "",
+    postalCode:       (a.postcode || "").replace(/\D/g, ""),
+    formattedFallback: data.display_name || "",
+  };
+}
+
+// ─── Unified geocode — Google first, Nominatim fallback ─────
+async function geocodeReverse(lat, lng) {
+  try {
+    const g = await reverseGeocodeGoogle(lat, lng);
+    if (g.road || g.city) return g; // Google returned usable data
+  } catch {}
+  try {
+    return await reverseGeocodeNominatim(lat, lng);
+  } catch (e) {
+    console.error("[geocodeReverse Nominatim]", e);
+  }
+  return {};
+}
+
+// Build a display string from a geocoding result
 function addrToEndereco(addr) {
   if (addr.road) return `${addr.road}${addr.houseNumber ? ", " + addr.houseNumber : ""}`;
   return addr.formattedFallback || "";
@@ -235,7 +267,7 @@ function MapPicker({ lat, lng, onLocationChange }) {
 
   const makeGeoHandler = (newLat, newLng) => {
     const gen = ++geoGenRef.current;
-    reverseGeocodeGoogle(newLat, newLng).then(addr => {
+    geocodeReverse(newLat, newLng).then(addr => {
       if (gen !== geoGenRef.current) return; // a newer request already fired, discard
       onLocationChange({ lat: newLat, lng: newLng, addr });
     });
@@ -591,7 +623,14 @@ export default function CacaoApp() {
       });
 
       // EXIF read — result may arrive before or after geo
-      const exifPromise = exifr.parse(file, { gps: true, tiff: true }).catch(() => null);
+      const exifPromise = Promise.all([
+        exifr.parse(file, { gps: true, tiff: true }).catch(() => null),
+        exifr.gps(file).catch(() => null),
+      ]).then(([parsed, gpsOnly]) => ({
+        ...parsed,
+        latitude:  parsed?.latitude  ?? gpsOnly?.latitude,
+        longitude: parsed?.longitude ?? gpsOnly?.longitude,
+      }));
 
       Promise.all([exifPromise, geoPromise]).then(([exif, geo]) => {
         const updates = {};
@@ -612,12 +651,13 @@ export default function CacaoApp() {
         const lng = (exif?.longitude) || geo?.longitude;
         const source = exif?.latitude ? "GPS (foto)" : geo ? "GPS (foto)" : null;
 
-        if (lat && lng && !form.latitude) {
+        const exifHasGps = !!(exif?.latitude);
+        if (lat && lng && (exifHasGps || !form.latitude)) {
           updates.latitude = lat;
           updates.longitude = lng;
           updates.fonteLocalizacao = source;
           setShowMap(true);
-          reverseGeocodeGoogle(lat, lng).then(addr => {
+          geocodeReverse(lat, lng).then(addr => {
             setForm(f => ({
               ...f,
               latitude: lat, longitude: lng,
@@ -699,11 +739,12 @@ export default function CacaoApp() {
     setForm(f => ({ ...f, endereco:"", cidade:"", estado:"", cep:"", latitude:null, longitude:null, fonteLocalizacao:"" }));
     setShowMap(false);
     setGeoStatus("loading");
+    if (!navigator.geolocation) { setGeoStatus("error"); return; }
     navigator.geolocation.getCurrentPosition(
       async pos => {
         const { latitude, longitude } = pos.coords;
         try {
-          const addr = await reverseGeocodeGoogle(latitude, longitude);
+          const addr = await geocodeReverse(latitude, longitude);
           setForm(f => ({
             ...f,
             latitude, longitude,
@@ -772,7 +813,7 @@ export default function CacaoApp() {
 
     // Geocoding as async enhancement — overwrites only if the field is still empty
     if (lat && lng) {
-      reverseGeocodeGoogle(lat, lng).then(addr => {
+      geocodeReverse(lat, lng).then(addr => {
         setForm(f => ({
           ...f,
           endereco: f.endereco || addrToEndereco(addr),
@@ -817,7 +858,7 @@ export default function CacaoApp() {
 
       const fields = {
         "Estabelecimento":    form.nomeEstabelecimento,
-        "Tipo":               form.tipoEstabelecimento,
+        "Tipo":               form.tipoEstabelecimento || undefined,
         "CEP":                form.cep,
         "Endereco":           form.numero ? `${form.endereco}, ${form.numero}` : form.endereco,
         "Cidade":             form.cidade,
@@ -826,11 +867,11 @@ export default function CacaoApp() {
         "Longitude":          form.longitude ? parseFloat(form.longitude) : undefined,
         "Google Place ID":    form.googlePlaceId,
         "Fonte Localizacao":  form.fonteLocalizacao,
-        "Forma de Venda":     form.formaVenda,
+        "Forma de Venda":     form.formaVenda       || undefined,
         "Preco por kg":       form.precoKg > 0 ? form.precoKg / 100 : undefined,
-        "Especie Declarada":  form.especieDeclarada,
-        "Origem":             form.origem,
-        "Analise IA":         aiResult?.ehCacao || "indeterminado",
+        "Especie Declarada":  form.especieDeclarada  || undefined,
+        "Origem":             form.origem            || undefined,
+        "Analise IA":         aiResult?.ehCacao      || undefined,
         "Observacoes":        form.observacoes,
         "Nome Reportante":    form.nome,
         "Email Reportante":   form.email,
@@ -874,7 +915,7 @@ export default function CacaoApp() {
   const idx = STEPS.indexOf(step);
   const canNext = {
     foto: true,
-    local: !!(form.nomeEstabelecimento && form.cidade && form.estado),
+    local: !!(form.nomeEstabelecimento && (form.endereco || (form.cidade && form.estado))),
     produto: true,
     envio: true,
   };
@@ -1056,9 +1097,7 @@ export default function CacaoApp() {
         <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
           letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>GPS</strong> — usa sua localização atual<br/>
         <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
-          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>Mapa</strong> — marca no mapa se não está no local<br/>
-        <strong style={{ color:"rgba(255,255,255,0.7)", fontFamily:"'Oswald',sans-serif",
-          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>Mapa</strong> — marca no mapa se não está no local
+          letterSpacing:"0.06em", textTransform:"uppercase", fontSize:11 }}>Marcar</strong> — clique no mapa para indicar a localização
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:18 }}>
@@ -1067,7 +1106,7 @@ export default function CacaoApp() {
             action: () => { document.getElementById("places-input")?.focus(); } },
           { Icon: IconPin,   label:"GPS",    active: form.fonteLocalizacao==="GPS",
             action: () => { handleGPS(); } },
-          { Icon: IconMap,   label:"Mapa",   active: form.fonteLocalizacao==="Mapa",
+          { Icon: IconMap,   label:"Marcar",   active: form.fonteLocalizacao==="Mapa",
             action: () => { setShowMap(v => !v); } },
         ].map(({ Icon, label, action, active }) => (
           <button key={label} onClick={action} style={{
