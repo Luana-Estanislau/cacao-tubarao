@@ -869,10 +869,13 @@ export default function CacaoApp() {
         "Longitude":          form.longitude ? parseFloat(form.longitude) : undefined,
         "Google Place ID":    form.googlePlaceId,
         "Fonte Localizacao":  form.fonteLocalizacao,
-        "Forma de Venda":     (form.formaVenda === "outro" ? form.formaVendaOutro.trim() : form.formaVenda) || undefined,
+        "Forma de Venda":     form.formaVenda       || undefined,
+        "Forma_de_Venda_Outro": form.formaVenda === "Outro" ? form.formaVendaOutro.trim() || undefined : undefined,
         "Preco por kg":       form.precoKg > 0 ? form.precoKg / 100 : undefined,
-        "Especie Declarada":  (form.especieDeclarada === "outro" ? form.especieDeclaradaOutro.trim() : form.especieDeclarada) || undefined,
-        "Origem":             (form.origem === "outro" ? form.origemOutro.trim() : form.origem) || undefined,
+        "Especie Declarada":  form.especieDeclarada  || undefined,
+        "Especie_Declarada_Outro": form.especieDeclarada === "Outro" ? form.especieDeclaradaOutro.trim() || undefined : undefined,
+        "Origem":             form.origem            || undefined,
+        "Origem_Declarada_Outro": form.origem === "Outro" ? form.origemOutro.trim() || undefined : undefined,
         "Marca":              form.marca.trim() || undefined,
         "Analise IA":         aiResult?.ehCacao      || undefined,
         "Observacoes":        form.observacoes,
@@ -922,9 +925,9 @@ export default function CacaoApp() {
     foto: true,
     local: !!(form.nomeEstabelecimento && (form.endereco || (form.cidade && form.estado))),
     produto: !(
-      (form.formaVenda === "outro" && !form.formaVendaOutro.trim()) ||
-      (form.especieDeclarada === "outro" && !form.especieDeclaradaOutro.trim()) ||
-      (form.origem === "outro" && !form.origemOutro.trim())
+      (form.formaVenda === "Outro" && !form.formaVendaOutro.trim()) ||
+      (form.especieDeclarada === "Outro" && !form.especieDeclaradaOutro.trim()) ||
+      (form.origem === "Outro" && !form.origemOutro.trim())
     ),
     envio: true,
   };
@@ -1319,13 +1322,12 @@ export default function CacaoApp() {
       <div style={S.group}>
         <label style={S.label}>Forma de Venda</label>
         <select style={{ ...S.input, appearance:"none" }}
-          value={form.formaVenda} onChange={e => { upd("formaVenda", e.target.value); if (e.target.value !== "outro") upd("formaVendaOutro", ""); }}>
+          value={form.formaVenda} onChange={e => { upd("formaVenda", e.target.value); if (e.target.value !== "Outro") upd("formaVendaOutro", ""); }}>
           <option value="">Selecione...</option>
           {(fieldChoices["Forma de Venda"]?.length > 0 ? fieldChoices["Forma de Venda"] : FORMAS_VENDA)
             .map(f => <option key={f} value={f}>{f}</option>)}
-          <option value="outro">Outro</option>
         </select>
-        {form.formaVenda === "outro" && (
+        {form.formaVenda === "Outro" && (
           <input style={{ ...S.input, marginTop:6 }}
             placeholder="Especifique a forma de venda *"
             value={form.formaVendaOutro}
@@ -1356,12 +1358,11 @@ export default function CacaoApp() {
         {fieldChoices["Especie Declarada"]?.length > 0 ? (
           <>
             <select style={{ ...S.input, appearance:"none" }}
-              value={form.especieDeclarada} onChange={e => { upd("especieDeclarada", e.target.value); if (e.target.value !== "outro") upd("especieDeclaradaOutro", ""); }}>
+              value={form.especieDeclarada} onChange={e => { upd("especieDeclarada", e.target.value); if (e.target.value !== "Outro") upd("especieDeclaradaOutro", ""); }}>
               <option value="">Selecione...</option>
               {fieldChoices["Especie Declarada"].map(c => <option key={c} value={c}>{c}</option>)}
-              <option value="outro">Outro</option>
             </select>
-            {form.especieDeclarada === "outro" && (
+            {form.especieDeclarada === "Outro" && (
               <input style={{ ...S.input, marginTop:6 }}
                 placeholder="Especifique a espécie *"
                 value={form.especieDeclaradaOutro}
@@ -1380,12 +1381,11 @@ export default function CacaoApp() {
         {fieldChoices["Origem"]?.length > 0 ? (
           <>
             <select style={{ ...S.input, appearance:"none" }}
-              value={form.origem} onChange={e => { upd("origem", e.target.value); if (e.target.value !== "outro") upd("origemOutro", ""); }}>
+              value={form.origem} onChange={e => { upd("origem", e.target.value); if (e.target.value !== "Outro") upd("origemOutro", ""); }}>
               <option value="">Selecione...</option>
               {fieldChoices["Origem"].map(c => <option key={c} value={c}>{c}</option>)}
-              <option value="outro">Outro</option>
             </select>
-            {form.origem === "outro" && (
+            {form.origem === "Outro" && (
               <input style={{ ...S.input, marginTop:6 }}
                 placeholder="Especifique a origem *"
                 value={form.origemOutro}
