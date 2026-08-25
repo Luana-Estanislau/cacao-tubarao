@@ -619,11 +619,21 @@ export default function CacaoApp() {
     if (slotIdx === 0) {
       setAiResult(null); setAiError(null);
 
+      // Troca de foto principal: sempre limpar localização anterior (seja de EXIF, GPS ou mapa)
+      // para que a nova foto seja processada do zero.
+      setForm(f => ({
+        ...f,
+        endereco:"", cidade:"", estado:"", cep:"",
+        latitude:null, longitude:null, fonteLocalizacao:"", googlePlaceId:"",
+      }));
+      setShowMap(false);
+      setGeoStatus("idle");
+      setPlacesQuery(""); setPlacesResults([]);
+
       // Capture device location NOW (at photo moment) — runs in parallel with EXIF read.
       // Browsers strip GPS from EXIF when the photo is taken inside a web app, so we
       // fall back to the device's live location. EXIF wins if it has coords (imported photo).
       const captureTime = new Date().toISOString();
-      let deviceGeo = null; // will be set if geolocation succeeds before EXIF resolves
 
       const geoPromise = new Promise(resolve => {
         if (!navigator.geolocation) { resolve(null); return; }
@@ -659,12 +669,11 @@ export default function CacaoApp() {
         }
 
         // Coords: prefer EXIF GPS (imported photo with real location), fall back to device geo
-        const lat = (exif?.latitude) || geo?.latitude;
-        const lng = (exif?.longitude) || geo?.longitude;
+        const lat = exif?.latitude || geo?.latitude;
+        const lng = exif?.longitude || geo?.longitude;
         const source = exif?.latitude ? "GPS (foto)" : geo ? "GPS (foto)" : null;
 
-        const exifHasGps = !!(exif?.latitude);
-        if (lat && lng && (exifHasGps || !form.latitude)) {
+        if (lat && lng) {
           updates.latitude = lat;
           updates.longitude = lng;
           updates.fonteLocalizacao = source;
@@ -673,10 +682,10 @@ export default function CacaoApp() {
             setForm(f => ({
               ...f,
               latitude: lat, longitude: lng,
-              endereco: addrToEndereco(addr) || f.endereco,
-              cidade:   addr.city  || f.cidade,
-              estado:   normalizeEstado(addr.state) || f.estado,
-              cep:      addr.postalCode || f.cep,
+              endereco: addrToEndereco(addr),
+              cidade:   addr.city || "",
+              estado:   normalizeEstado(addr.state) || "",
+              cep:      addr.postalCode || "",
               fonteLocalizacao: source,
             }));
           });
