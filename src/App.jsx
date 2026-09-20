@@ -1292,29 +1292,6 @@ export default function CacaoApp() {
         </div>
       </div>
 
-      {/* CEP — somente leitura, preenchido automaticamente */}
-      {form.cep && (
-        <div style={S.group}>
-          <label style={S.label}>CEP</label>
-          <input
-            style={{ ...S.input, opacity: 0.6, cursor: "default" }}
-            value={form.cep.replace(/^(\d{5})(\d{3})$/, "$1-$2")}
-            readOnly
-            tabIndex={-1}
-          />
-        </div>
-      )}
-
-      {/* CEP — somente leitura, preenchido automaticamente */}
-      {form.cep && (
-        <div style={S.group}>
-          <label style={S.label}>CEP</label>
-          <input style={{ ...S.input, opacity:0.6 }}
-            value={form.cep.replace(/^(\d{5})(\d{3})$/, "$1-$2")}
-            readOnly />
-        </div>
-      )}
-
       {/* Cidade + Estado — sempre visíveis; readonly só quando localização confirmada */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 90px", gap:10 }}>
         <div style={S.group}>
@@ -1339,6 +1316,19 @@ export default function CacaoApp() {
           )}
         </div>
       </div>
+
+      {/* CEP — somente leitura, preenchido automaticamente */}
+      {form.cep && (
+        <div style={S.group}>
+          <label style={S.label}>CEP</label>
+          <input
+            style={{ ...S.input, opacity: 0.6, cursor: "default" }}
+            value={form.cep.replace(/^(\d{5})(\d{3})$/, "$1-$2")}
+            readOnly
+            tabIndex={-1}
+          />
+        </div>
+      )}
     </div>
   );
 
