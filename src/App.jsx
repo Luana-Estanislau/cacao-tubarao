@@ -590,7 +590,8 @@ export default function CacaoApp() {
     formaVenda:"", formaVendaOutro:"", precoKg:0,
     especieDeclarada:"", especieDeclaradaOutro:"",
     origem:"", origemOutro:"",
-    marca:"", observacoes:"",
+    marca:"", peso:"", precoTotal:0,
+    observacoes:"",
     nome:"", email:"", concordo:false,
   });
 
@@ -717,18 +718,15 @@ export default function CacaoApp() {
     if (!slotBases[0]) return;
     setAiLoading(true); setAiError(null);
     try {
-      // Compress all available images at higher resolution to preserve label text
-      const aiImages = await Promise.all(slotBases.map(b => compressForAI(b)));
-
-      // Single call to serverless proxy — returns badge + field extraction together
-      const result = await callAnthropicProxy(aiImages);
+      // Send full-resolution base64 — no extra compression so OCR quality is preserved
+      const result = await callAnthropicProxy(slotBases);
 
       if (!result.success) {
         setAiError("Não foi possível analisar. Continue mesmo assim.");
         return;
       }
 
-      // Classification badge (ehCacao, confianca, observacao, indicadores)
+      // Classification badge
       setAiResult({
         ehCacao:     result.ehCacao     || "indeterminado",
         confianca:   result.confianca   || "baixo",
@@ -736,15 +734,20 @@ export default function CacaoApp() {
         indicadores: result.indicadores || [],
       });
 
-      // Auto-fill form fields — all remain editable by the user
+      // Pre-fill all extracted fields — all remain editable by the user
       setForm(f => ({
         ...f,
         especieDeclarada: result.especie_declarada || f.especieDeclarada,
+        marca:            result.marca             || f.marca,
         origem:           result.origem_declarada  || f.origem,
         formaVenda:       result.forma_venda        || f.formaVenda,
-        precoKg: result.preco_por_kg > 0
+        peso:             result.peso_liquido       || f.peso,
+        precoKg: result.preco_por_kg != null
           ? Math.round(result.preco_por_kg * 100)
           : f.precoKg,
+        precoTotal: result.preco_total != null
+          ? Math.round(result.preco_total * 100)
+          : f.precoTotal,
       }));
     } catch {
       setAiError("Não foi possível analisar. Continue mesmo assim.");
@@ -891,6 +894,8 @@ export default function CacaoApp() {
         "Forma de Venda":     validSelect("Forma de Venda", form.formaVenda, fieldChoices),
         "Forma_de_Venda_Outro": form.formaVenda === "Outro" ? form.formaVendaOutro.trim() || undefined : undefined,
         "Preco por kg":       form.precoKg > 0 ? form.precoKg / 100 : undefined,
+        "Peso":               form.peso.trim() || undefined,
+        "Preco Total":        form.precoTotal > 0 ? form.precoTotal / 100 : undefined,
         "Especie Declarada":  validSelect("Especie Declarada", form.especieDeclarada, fieldChoices),
         "Especie_Declarada_Outro": form.especieDeclarada === "Outro" ? form.especieDeclaradaOutro.trim() || undefined : undefined,
         "Origem":             validSelect("Origem", form.origem, fieldChoices),
@@ -934,7 +939,8 @@ export default function CacaoApp() {
       formaVenda:"", formaVendaOutro:"", precoKg:0,
       especieDeclarada:"", especieDeclaradaOutro:"",
       origem:"", origemOutro:"",
-      marca:"", observacoes:"",
+      marca:"", peso:"", precoTotal:0,
+      observacoes:"",
       nome:"", email:"", concordo:false,
     });
   }
@@ -1364,20 +1370,47 @@ export default function CacaoApp() {
         )}
       </div>
 
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <div style={S.group}>
+          <label style={S.label}>Preço por kg (R$)</label>
+          <input
+            style={{ ...S.input, MozAppearance:"textfield" }}
+            type="text"
+            inputMode="numeric"
+            value={form.precoKg > 0
+              ? `R$ ${(form.precoKg / 100).toLocaleString("pt-BR", { minimumFractionDigits:2, maximumFractionDigits:2 })}`
+              : ""}
+            placeholder="R$ 0,00"
+            onChange={e => {
+              const digits = e.target.value.replace(/\D/g, "");
+              const cents = digits ? Math.min(parseInt(digits, 10), 999999) : 0;
+              upd("precoKg", cents);
+            }}
+          />
+        </div>
+        <div style={S.group}>
+          <label style={S.label}>Peso</label>
+          <input style={S.input}
+            placeholder="Ex: 500 g, 1 kg"
+            value={form.peso}
+            onChange={e => upd("peso", e.target.value)} />
+        </div>
+      </div>
+
       <div style={S.group}>
-        <label style={S.label}>Preço por kg (R$)</label>
+        <label style={S.label}>Preço Total (R$)</label>
         <input
           style={{ ...S.input, MozAppearance:"textfield" }}
           type="text"
           inputMode="numeric"
-          value={form.precoKg > 0
-            ? `R$ ${(form.precoKg / 100).toLocaleString("pt-BR", { minimumFractionDigits:2, maximumFractionDigits:2 })}`
+          value={form.precoTotal > 0
+            ? `R$ ${(form.precoTotal / 100).toLocaleString("pt-BR", { minimumFractionDigits:2, maximumFractionDigits:2 })}`
             : ""}
-          placeholder="R$ 0,00"
+          placeholder="R$ 0,00 — valor total à vista da etiqueta"
           onChange={e => {
             const digits = e.target.value.replace(/\D/g, "");
-            const cents = digits ? Math.min(parseInt(digits, 10), 999999) : 0;
-            upd("precoKg", cents);
+            const cents = digits ? Math.min(parseInt(digits, 10), 9999999) : 0;
+            upd("precoTotal", cents);
           }}
         />
       </div>
