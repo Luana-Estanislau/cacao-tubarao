@@ -135,15 +135,15 @@ Preencha todos os campos que conseguir identificar. Campos não visíveis → nu
         max_tokens: 2000,
         temperature: 0,
         tools: [extractTool],
-        tool_choice: { type: "any" },
+        tool_choice: { type: "tool", name: "extract_label_data" },
         messages: [{ role: "user", content }],
       }),
     });
 
     if (!anthropicRes.ok) {
       const errText = await anthropicRes.text();
-      console.error("[analisar-etiqueta] Anthropic error:", anthropicRes.status, errText);
-      return res.status(200).json({ success: false, error: "ia_indisponivel" });
+      console.error("[analisar-etiqueta] Anthropic HTTP error:", anthropicRes.status, errText.slice(0, 500));
+      return res.status(200).json({ success: false, error: "ia_indisponivel", detail: errText.slice(0, 200) });
     }
 
     const data = await anthropicRes.json();
