@@ -257,11 +257,11 @@ async function compressForAI(base64, maxWidth = 2000) {
 // ─── Claude image analysis — via Vercel serverless proxy (CAC-18) ──
 // All Anthropic calls go through /api/analisar-etiqueta to avoid CORS
 // and keep the API key server-side only.
-async function callAnthropicProxy(images) {
+async function callAnthropicProxy(images, choices = {}) {
   const res = await fetch("/api/analisar-etiqueta", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ images }),
+    body: JSON.stringify({ images, choices }),
   });
   if (!res.ok) throw new Error(`proxy ${res.status}`);
   return res.json();
@@ -564,6 +564,47 @@ const S = {
   },
 };
 
+// ─── AI badge helper ──────────────────────────────────────────
+function AiBadge({ fieldKey, aiFilledFields, aiEvidencias, aiConfiancaCampos }) {
+  if (!aiFilledFields.has(fieldKey)) return null;
+  const evidencia = aiEvidencias[fieldKey] || aiEvidencias[fieldKey.replace(/([A-Z])/g, "_$1").toLowerCase()];
+  const confianca = aiConfiancaCampos[fieldKey] || aiConfiancaCampos[fieldKey.replace(/([A-Z])/g, "_$1").toLowerCase()];
+  const isBaixa = confianca === "baixo" || confianca === "baixa";
+  const [showTip, setShowTip] = useState(false);
+  return (
+    <span style={{ position:"relative", display:"inline-block", marginLeft:6, verticalAlign:"middle" }}>
+      <span
+        onMouseEnter={() => setShowTip(true)}
+        onMouseLeave={() => setShowTip(false)}
+        style={{
+          fontSize:9, fontWeight:700, fontFamily:"'Oswald',sans-serif",
+          letterSpacing:"0.08em", textTransform:"uppercase",
+          padding:"2px 5px", borderRadius:3,
+          background: isBaixa ? "rgba(96,14,10,0.7)" : "rgba(75,131,153,0.25)",
+          color: isBaixa ? "#f99" : "#4B8399",
+          border: `1px solid ${isBaixa ? "#600E0A" : "#4B8399"}`,
+          cursor: evidencia ? "help" : "default",
+          userSelect:"none",
+        }}
+      >
+        IA{isBaixa ? " ?" : ""}
+      </span>
+      {showTip && evidencia && (
+        <span style={{
+          position:"absolute", bottom:"calc(100% + 4px)", left:0,
+          background:"#10263F", border:"1px solid #4B8399",
+          color:"rgba(255,255,255,0.85)", fontSize:11, padding:"6px 8px",
+          borderRadius:4, whiteSpace:"pre-wrap", minWidth:180, maxWidth:260,
+          zIndex:100, boxShadow:"0 4px 12px rgba(0,0,0,0.4)",
+          fontFamily:"'Montserrat',sans-serif",
+        }}>
+          {evidencia}
+        </span>
+      )}
+    </span>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────
 export default function CacaoApp() {
   const navigate = useNavigate();
@@ -576,6 +617,9 @@ export default function CacaoApp() {
   const [aiResult, setAiResult]   = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError]     = useState(null);
+  const [aiFilledFields, setAiFilledFields] = useState(new Set());
+  const [aiEvidencias, setAiEvidencias]     = useState({});
+  const [aiConfiancaCampos, setAiConfiancaCampos] = useState({});
   const fileRef = useRef();
   const activeSlotRef = useRef(0);
   const [fieldChoices, setFieldChoices] = useState({});
@@ -619,6 +663,7 @@ export default function CacaoApp() {
 
     if (slotIdx === 0) {
       setAiResult(null); setAiError(null);
+      setAiFilledFields(new Set()); setAiEvidencias({}); setAiConfiancaCampos({});
 
       // Troca de foto principal: sempre limpar localização anterior (seja de EXIF, GPS ou mapa)
       // para que a nova foto seja processada do zero.
@@ -718,37 +763,87 @@ export default function CacaoApp() {
     if (!slotBases[0]) return;
     setAiLoading(true); setAiError(null);
     try {
-      // Send full-resolution base64 — no extra compression so OCR quality is preserved
-      const result = await callAnthropicProxy(slotBases);
+      // Compress to max 1568px long side, quality 0.88 — preserves small text, reduces payload
+      const compressed = await Promise.all(slotBases.map(b => compressForAI(b, 1568)));
+
+      // Pass current Airtable choices so the serverless can validate outputs
+      const relevantChoices = {
+        "Especie Declarada": fieldChoices["Especie Declarada"] || [],
+        "Origem":            fieldChoices["Origem"] || [],
+        "Forma de Venda":    fieldChoices["Forma de Venda"] || [],
+        "Tipo":              fieldChoices["Tipo"] || [],
+      };
+
+      const result = await callAnthropicProxy(compressed, relevantChoices);
 
       if (!result.success) {
         setAiError("Não foi possível analisar. Continue mesmo assim.");
         return;
       }
 
-      // Classification badge
       setAiResult({
         ehCacao:     result.ehCacao     || "indeterminado",
         confianca:   result.confianca   || "baixo",
         observacao:  result.observacao  || "",
         indicadores: result.indicadores || [],
       });
+      setAiEvidencias(result.evidencias || {});
+      setAiConfiancaCampos(result.confianca_campos || {});
 
-      // Pre-fill all extracted fields — all remain editable by the user
-      setForm(f => ({
-        ...f,
-        especieDeclarada: result.especie_declarada || f.especieDeclarada,
-        marca:            result.marca             || f.marca,
-        origem:           result.origem_declarada  || f.origem,
-        formaVenda:       result.forma_venda        || f.formaVenda,
-        peso:             result.peso_liquido       || f.peso,
-        precoKg: result.preco_por_kg != null
-          ? Math.round(result.preco_por_kg * 100)
-          : f.precoKg,
-        precoTotal: result.preco_total != null
-          ? Math.round(result.preco_total * 100)
-          : f.precoTotal,
-      }));
+      // Only fill empty fields — never overwrite what the user already typed
+      setForm(f => {
+        const filled = new Set();
+        const upd = {};
+
+        if (result.especie_declarada && !f.especieDeclarada) {
+          upd.especieDeclarada = result.especie_declarada; filled.add("especieDeclarada");
+        }
+        if (result.especie_outro && !f.especieDeclaradaOutro) {
+          upd.especieDeclaradaOutro = result.especie_outro;
+        }
+        if (result.origem_declarada && !f.origem) {
+          upd.origem = result.origem_declarada; filled.add("origem");
+        }
+        if (result.origem_outro && !f.origemOutro) {
+          upd.origemOutro = result.origem_outro;
+        }
+        if (result.forma_venda && !f.formaVenda) {
+          upd.formaVenda = result.forma_venda; filled.add("formaVenda");
+        }
+        if (result.forma_venda_outro && !f.formaVendaOutro) {
+          upd.formaVendaOutro = result.forma_venda_outro;
+        }
+        if (result.marca && !f.marca) {
+          upd.marca = result.marca; filled.add("marca");
+        }
+        if (result.peso_liquido && !f.peso) {
+          upd.peso = result.peso_liquido; filled.add("peso");
+        }
+        if (result.preco_por_kg != null && f.precoKg === 0) {
+          upd.precoKg = Math.round(result.preco_por_kg * 100); filled.add("precoKg");
+        }
+        if (result.preco_total != null && f.precoTotal === 0) {
+          upd.precoTotal = Math.round(result.preco_total * 100); filled.add("precoTotal");
+        }
+
+        setAiFilledFields(prev => new Set([...prev, ...filled]));
+        return { ...f, ...upd };
+      });
+
+      // Append extra metadata (SIF, validade, etc.) to observações if not already there
+      const extras = [];
+      if (result.nome_cientifico) extras.push(`Nome científico: ${result.nome_cientifico}`);
+      if (result.sif) extras.push(`SIF: ${result.sif}`);
+      if (result.data_validade) extras.push(`Validade: ${result.data_validade}`);
+      if (result.fabricante_importador) extras.push(`Fabricante/Importador: ${result.fabricante_importador}`);
+      if (extras.length) {
+        setForm(f => ({
+          ...f,
+          observacoes: f.observacoes
+            ? f.observacoes
+            : extras.join(" | "),
+        }));
+      }
     } catch {
       setAiError("Não foi possível analisar. Continue mesmo assim.");
     } finally {
@@ -1345,7 +1440,7 @@ export default function CacaoApp() {
       </p>
 
       <div style={S.group}>
-        <label style={S.label}>Forma de Venda</label>
+        <label style={S.label}>Forma de Venda <AiBadge fieldKey="formaVenda" aiFilledFields={aiFilledFields} aiEvidencias={aiEvidencias} aiConfiancaCampos={aiConfiancaCampos} /></label>
         <select style={{ ...S.input, appearance:"none" }}
           value={form.formaVenda} onChange={e => { upd("formaVenda", e.target.value); if (e.target.value !== "Outro") upd("formaVendaOutro", ""); }}>
           <option value="">Selecione...</option>
@@ -1362,7 +1457,7 @@ export default function CacaoApp() {
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
         <div style={S.group}>
-          <label style={S.label}>Preço por kg (R$)</label>
+          <label style={S.label}>Preço por kg (R$) <AiBadge fieldKey="precoKg" aiFilledFields={aiFilledFields} aiEvidencias={aiEvidencias} aiConfiancaCampos={aiConfiancaCampos} /></label>
           <input
             style={{ ...S.input, MozAppearance:"textfield" }}
             type="text"
@@ -1379,7 +1474,7 @@ export default function CacaoApp() {
           />
         </div>
         <div style={S.group}>
-          <label style={S.label}>Peso</label>
+          <label style={S.label}>Peso <AiBadge fieldKey="peso" aiFilledFields={aiFilledFields} aiEvidencias={aiEvidencias} aiConfiancaCampos={aiConfiancaCampos} /></label>
           <input style={S.input}
             placeholder="Ex: 500 g, 1 kg"
             value={form.peso}
@@ -1388,7 +1483,7 @@ export default function CacaoApp() {
       </div>
 
       <div style={S.group}>
-        <label style={S.label}>Preço Total (R$)</label>
+        <label style={S.label}>Preço Total (R$) <AiBadge fieldKey="precoTotal" aiFilledFields={aiFilledFields} aiEvidencias={aiEvidencias} aiConfiancaCampos={aiConfiancaCampos} /></label>
         <input
           style={{ ...S.input, MozAppearance:"textfield" }}
           type="text"
@@ -1406,7 +1501,7 @@ export default function CacaoApp() {
       </div>
 
       <div style={S.group}>
-        <label style={S.label}>Espécie Declarada na Etiqueta</label>
+        <label style={S.label}>Espécie Declarada na Etiqueta <AiBadge fieldKey="especieDeclarada" aiFilledFields={aiFilledFields} aiEvidencias={aiEvidencias} aiConfiancaCampos={aiConfiancaCampos} /></label>
         {fieldChoices["Especie Declarada"]?.length > 0 ? (
           <>
             <select style={{ ...S.input, appearance:"none" }}
@@ -1429,7 +1524,7 @@ export default function CacaoApp() {
       </div>
 
       <div style={S.group}>
-        <label style={S.label}>Origem Declarada</label>
+        <label style={S.label}>Origem Declarada <AiBadge fieldKey="origem" aiFilledFields={aiFilledFields} aiEvidencias={aiEvidencias} aiConfiancaCampos={aiConfiancaCampos} /></label>
         {fieldChoices["Origem"]?.length > 0 ? (
           <>
             <select style={{ ...S.input, appearance:"none" }}
@@ -1452,7 +1547,7 @@ export default function CacaoApp() {
       </div>
 
       <div style={S.group}>
-        <label style={S.label}>Marca</label>
+        <label style={S.label}>Marca <AiBadge fieldKey="marca" aiFilledFields={aiFilledFields} aiEvidencias={aiEvidencias} aiConfiancaCampos={aiConfiancaCampos} /></label>
         <input style={S.input}
           placeholder="Ex: Seara, marca própria, sem identificação..."
           value={form.marca} onChange={e => upd("marca", e.target.value)} />
