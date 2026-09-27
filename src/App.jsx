@@ -620,6 +620,7 @@ export default function CacaoApp() {
   const [aiFilledFields, setAiFilledFields] = useState(new Set());
   const [aiEvidencias, setAiEvidencias]     = useState({});
   const [aiConfiancaCampos, setAiConfiancaCampos] = useState({});
+  const aiInFlightRef = useRef(false); // prevents duplicate concurrent calls
   const fileRef = useRef();
   const activeSlotRef = useRef(0);
   const [fieldChoices, setFieldChoices] = useState({});
@@ -664,6 +665,7 @@ export default function CacaoApp() {
     if (slotIdx === 0) {
       setAiResult(null); setAiError(null);
       setAiFilledFields(new Set()); setAiEvidencias({}); setAiConfiancaCampos({});
+      aiInFlightRef.current = false;
 
       // Troca de foto principal: sempre limpar localização anterior (seja de EXIF, GPS ou mapa)
       // para que a nova foto seja processada do zero.
@@ -759,8 +761,10 @@ export default function CacaoApp() {
   }
 
   async function handleAnalyze() {
+    if (aiInFlightRef.current) return; // deduplicate rapid clicks
     const slotBases = slots.map(s => s.base64).filter(Boolean);
     if (!slotBases[0]) return;
+    aiInFlightRef.current = true;
     setAiLoading(true); setAiError(null);
     try {
       // Compress to max 1568px long side, quality 0.88 — preserves small text, reduces payload
@@ -844,10 +848,12 @@ export default function CacaoApp() {
             : extras.join(" | "),
         }));
       }
-    } catch {
+    } catch (e) {
+      console.error("[handleAnalyze]", e);
       setAiError("Não foi possível analisar. Continue mesmo assim.");
     } finally {
       setAiLoading(false);
+      aiInFlightRef.current = false;
     }
   }
 

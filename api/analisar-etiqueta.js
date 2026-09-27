@@ -132,7 +132,6 @@ Preencha todos os campos que conseguir identificar nas ${images.length} foto(s).
       body: JSON.stringify({
         model: "claude-sonnet-5",
         max_tokens: 2000,
-        temperature: 0,
         tools: [extractTool],
         tool_choice: { type: "tool", name: "extract_label_data" },
         messages: [{ role: "user", content }],
@@ -142,7 +141,9 @@ Preencha todos os campos que conseguir identificar nas ${images.length} foto(s).
     if (!anthropicRes.ok) {
       const errText = await anthropicRes.text();
       console.error("[analisar-etiqueta] Anthropic HTTP error:", anthropicRes.status, errText.slice(0, 600));
-      return res.status(200).json({ success: false, error: "ia_indisponivel", detail: errText.slice(0, 300) });
+      let errMsg = "ia_indisponivel";
+      try { errMsg = JSON.parse(errText)?.error?.message || errMsg; } catch {}
+      return res.status(anthropicRes.status).json({ success: false, error: errMsg, status: anthropicRes.status });
     }
 
     const data = await anthropicRes.json();
