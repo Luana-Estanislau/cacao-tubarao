@@ -621,6 +621,7 @@ export default function CacaoApp() {
   const [aiEvidencias, setAiEvidencias]     = useState({});
   const [aiConfiancaCampos, setAiConfiancaCampos] = useState({});
   const aiInFlightRef = useRef(false); // prevents duplicate concurrent calls
+  const [localTouched, setLocalTouched] = useState(false);
   const fileRef = useRef();
   const activeSlotRef = useRef(0);
   const [fieldChoices, setFieldChoices] = useState({});
@@ -1049,7 +1050,7 @@ export default function CacaoApp() {
   const idx = STEPS.indexOf(step);
   const canNext = {
     foto: true,
-    local: !!(form.endereco || (form.cidade && form.estado)),
+    local: !!(form.endereco || (form.cidade && form.estado)) && !!form.tipoEstabelecimento,
     produto: !(
       (form.formaVenda === "Outro" && !form.formaVendaOutro.trim()) ||
       (form.especieDeclarada === "Outro" && !form.especieDeclaradaOutro.trim()) ||
@@ -1368,12 +1369,23 @@ export default function CacaoApp() {
       {/* Tipo */}
       <div style={S.group}>
         <label style={S.label}>Tipo *</label>
-        <select style={{ ...S.input, appearance:"none" }}
-          value={form.tipoEstabelecimento} onChange={e => upd("tipoEstabelecimento", e.target.value)}>
+        <select
+          style={{
+            ...S.input, appearance:"none",
+            borderColor: localTouched && !form.tipoEstabelecimento ? "#CF0F36" : undefined,
+          }}
+          value={form.tipoEstabelecimento}
+          onChange={e => upd("tipoEstabelecimento", e.target.value)}>
           <option value="">Selecione...</option>
           {(fieldChoices["Tipo"]?.length > 0 ? fieldChoices["Tipo"] : TIPOS_ESTABELECIMENTO)
             .map(t => <option key={t} value={t}>{t}</option>)}
         </select>
+        {localTouched && !form.tipoEstabelecimento && (
+          <div style={{ fontSize:11, color:"#CF0F36", marginTop:4,
+            fontFamily:"'Montserrat',sans-serif" }}>
+            Selecione o tipo de estabelecimento para continuar.
+          </div>
+        )}
       </div>
 
       {/* Endereço + Número */}
@@ -1803,8 +1815,15 @@ export default function CacaoApp() {
         )}
         {step !== "envio" && (
           <button
-            onClick={() => setStep(STEPS[idx+1])}
-            disabled={!canNext[step]}
+            onClick={() => {
+              if (step === "local" && !form.tipoEstabelecimento) {
+                setLocalTouched(true);
+                return;
+              }
+              if (!canNext[step]) return;
+              setStep(STEPS[idx+1]);
+            }}
+            disabled={false}
             style={{
               ...S.btnPrimary, flex:1,
               background: canNext[step] ? "#CF0F36" : "rgba(255,255,255,0.06)",
