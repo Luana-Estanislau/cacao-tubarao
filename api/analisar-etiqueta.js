@@ -198,13 +198,26 @@ function buildResponse(p, choices, res) {
   }
 
   // Resolve origem
-  let origem = matchChoice("Origem", safeStr(p.origem));
+  // "Outro" is only for when a real country/origin was found but doesn't match the list.
+  // When AI returns null (not visible on label), fall back to "Não declarada" if that option exists.
+  const origemRaw = safeStr(p.origem);
+  // Treat "null" string literal or empty as truly not found
+  const origemFound = origemRaw && origemRaw.toLowerCase() !== "null";
+  let origem = origemFound ? matchChoice("Origem", origemRaw) : null;
   let origemOutro = null;
-  if (!origem && safeStr(p.origem)) {
+  if (!origem && origemFound) {
+    // AI identified an origin but it's not in the list → use Outro with text
     if ((choices["Origem"] || []).includes("Outro")) {
       origem = "Outro";
-      origemOutro = safeStr(p.origem_outro) || safeStr(p.origem);
+      origemOutro = safeStr(p.origem_outro) || origemRaw;
     }
+  }
+  if (!origem && !origemFound) {
+    // AI found nothing → silently use "Não declarada" if available, otherwise leave null
+    const naoDeclarada = (choices["Origem"] || []).find(o =>
+      normalize(o) === normalize("Não declarada") || normalize(o) === normalize("Nao declarada")
+    );
+    if (naoDeclarada) origem = naoDeclarada;
   }
 
   // Resolve forma venda

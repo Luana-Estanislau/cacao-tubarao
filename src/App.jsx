@@ -1674,14 +1674,14 @@ export default function CacaoApp() {
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         <button
           onClick={handleSubmit}
-          disabled={!form.concordo || submitting || !form.nomeEstabelecimento || !form.cidade || !slots[0].base64}
+          disabled={!form.concordo || submitting || !form.nomeEstabelecimento || !form.cidade || !slots[0].base64 || !form.tipoEstabelecimento}
           style={{
             ...S.btnPrimary,
-            background: form.concordo && form.nomeEstabelecimento && form.cidade && slots[0].base64
+            background: form.concordo && form.nomeEstabelecimento && form.cidade && slots[0].base64 && form.tipoEstabelecimento
               ? "#CF0F36"
               : "rgba(255,255,255,0.06)",
-            color: form.concordo && form.nomeEstabelecimento && form.cidade && slots[0].base64 ? "#fff" : "rgba(255,255,255,0.25)",
-            cursor: form.concordo && slots[0].base64 ? "pointer" : "not-allowed",
+            color: form.concordo && form.nomeEstabelecimento && form.cidade && slots[0].base64 && form.tipoEstabelecimento ? "#fff" : "rgba(255,255,255,0.25)",
+            cursor: form.concordo && slots[0].base64 && form.tipoEstabelecimento ? "pointer" : "not-allowed",
           }}
         >
           {submitting
