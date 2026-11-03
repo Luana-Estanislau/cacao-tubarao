@@ -1,40 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
-const AIRTABLE_TOKEN = import.meta.env.VITE_AIRTABLE_TOKEN;
-const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
-const AIRTABLE_TABLE = "Table 1";
-
-// ─── Fetch all records from Airtable ─────────────────────────
+// ─── Fetch all records via server proxy ──────────────────────
 async function fetchRegistros() {
-  let records = [];
-  let offset = null;
-
-  do {
-    const url = new URL(
-      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_TABLE)}`
-    );
-    url.searchParams.set("fields[]", "Estabelecimento");
-    url.searchParams.append("fields[]", "Tipo");
-    url.searchParams.append("fields[]", "Cidade");
-    url.searchParams.append("fields[]", "Estado");
-    url.searchParams.append("fields[]", "Latitude");
-    url.searchParams.append("fields[]", "Longitude");
-    url.searchParams.append("fields[]", "Analise IA");
-    url.searchParams.append("fields[]", "Data Registro");
-    url.searchParams.append("fields[]", "Forma de Venda");
-    url.searchParams.append("fields[]", "Preco por kg");
-    if (offset) url.searchParams.set("offset", offset);
-
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` },
-    });
-    const data = await res.json();
-    records = [...records, ...(data.records || [])];
-    offset = data.offset || null;
-  } while (offset);
-
-  return records;
+  const res = await fetch("/api/airtable-records");
+  if (!res.ok) throw new Error("Erro ao carregar registros");
+  const data = await res.json();
+  return data.records || [];
 }
 
 // ─── AI badge color ───────────────────────────────────────────

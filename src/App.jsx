@@ -5,9 +5,7 @@ import * as exifr from "exifr";
 // ============================================================
 // CONFIGURAÇÃO — credenciais via variáveis de ambiente
 // ============================================================
-const AIRTABLE_TOKEN = import.meta.env.VITE_AIRTABLE_TOKEN;
-const AIRTABLE_BASE_ID = import.meta.env.VITE_AIRTABLE_BASE_ID;
-const AIRTABLE_TABLE = "Table 1";
+const AIRTABLE_TABLE = "Table 1"; // kept only for client-side display/validation, not for auth
 const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY;
 const CLOUDINARY_CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -110,20 +108,14 @@ const STEP_LABELS = { foto:"Foto", local:"Local", produto:"Produto", envio:"Envi
 
 // ─── Airtable ────────────────────────────────────────────────
 async function saveToAirtable(fields) {
-  const res = await fetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_TABLE)}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ fields }),
-    }
-  );
+  const res = await fetch("/api/airtable-save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+  });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err?.error?.message || "Erro ao salvar");
+    throw new Error(err?.error || "Erro ao salvar");
   }
   return res.json();
 }
@@ -216,23 +208,12 @@ function addrToEndereco(addr) {
   return addr.formattedFallback || "";
 }
 
-// ─── Airtable field metadata → choices ───────────────────────
+// ─── Airtable field metadata → choices (via server proxy) ────
 async function fetchFieldChoices() {
   try {
-    const res = await fetch(
-      `https://api.airtable.com/v0/meta/bases/${AIRTABLE_BASE_ID}/tables`,
-      { headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` } }
-    );
-    const data = await res.json();
-    const table = data.tables?.find(t => t.name === AIRTABLE_TABLE);
-    if (!table) return {};
-    const choices = {};
-    for (const field of table.fields || []) {
-      if (field.options?.choices) {
-        choices[field.name] = field.options.choices.map(c => c.name);
-      }
-    }
-    return choices;
+    const res = await fetch("/api/airtable-schema");
+    if (!res.ok) return {};
+    return res.json();
   } catch {
     return {};
   }
